@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
+import { HousesModule } from './houses/houses.module';
 
 @Module({
   imports: [
@@ -22,6 +23,7 @@ import { AuthModule } from './auth/auth.module';
       logging: process.env.NODE_ENV === 'development',
     }),
     AuthModule,
+    HousesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
