@@ -2,7 +2,7 @@
 
 RoomieSync is a mobile-first household management app designed for young professionals, college students, and young families living in shared housing situations. Unlike existing fragmented solutions, RoomieSync combines shopping list management with seamless expense tracking in one intuitive, modern interface.
 
-It's designed to solve a problem I actually have, as well as to be a great way to learn full-stack mobile app development and deployment while leveraging AI workflows.
+It's designed to solve a problem I actually have, and to be a great way to learn full-stack mobile app development and deployment while leveraging AI workflows.
 
 AI Assistance Attribution:
 This project is largely made feasible as a solo developer by leveraging AI tools and workflows to greatly speed up the development process, allowing me to focus on high level design, product, and feature design rather than spending vast quantities of time on detailed implementation.  All code is reviewed and tested by me, and follows my design and specifications
