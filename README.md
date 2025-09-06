@@ -65,6 +65,21 @@ A NestJS backend API for managing shared expenses, payments, and multi-house roo
 - **📋 [API.md](./API.md)** - Complete API reference with examples
 - **📚 Interactive Docs** - Visit http://localhost:3001/api when running
 
+### Using Swagger UI
+
+The interactive Swagger documentation provides:
+- ✅ **Test Endpoints** - Execute API calls directly from the browser
+- 🔐 **Authentication** - Built-in JWT token management
+- 📝 **Request/Response Examples** - See exact data formats
+- 📊 **Schema Validation** - Real-time input validation
+
+**Getting Started with Swagger:**
+1. Visit http://localhost:3001/api
+2. Test authentication endpoints (`/auth/register` or `/auth/login`)
+3. Copy the JWT token from the response
+4. Click **"Authorize"** button and paste: `Bearer <your-token>`
+5. Now you can test protected endpoints like `/auth/profile`
+
 ## Database Schema
 
 ### Core Entities
@@ -93,19 +108,55 @@ The app uses these environment variables (configured in `.env`):
 
 ```env
 # Database
-DATABASE_HOST=localhost
-DATABASE_PORT=5433
-DATABASE_USERNAME=roomiesync
-DATABASE_PASSWORD=roomiesync123
-DATABASE_NAME=roomiesync_db
+DB_HOST=localhost
+DB_PORT=5433
+DB_USERNAME=roomiesync
+DB_PASSWORD=password
+DB_NAME=roomiesync_db
 
 # JWT
-JWT_SECRET=your-super-secret-jwt-key
+JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+JWT_EXPIRES_IN=7d
 
 # App
 PORT=3001
 NODE_ENV=development
+FRONTEND_URL=http://localhost:3000
 ```
+
+## Database Access
+
+### Using External Database Tools
+
+Connect to the PostgreSQL database using any PostgreSQL client:
+
+**Connection Settings:**
+- **Host**: `localhost`
+- **Port**: `5433`
+- **Database**: `roomiesync_db`
+- **Username**: `roomiesync`
+- **Password**: `password`
+
+**Popular Database Tools:**
+- **[pgAdmin](https://www.pgadmin.org/)** - Web-based PostgreSQL administration
+- **[TablePlus](https://tableplus.com/)** - Native database client for Mac/Windows
+- **[DBeaver](https://dbeaver.io/)** - Free universal database tool
+- **[DataGrip](https://www.jetbrains.com/datagrip/)** - JetBrains database IDE
+- **[Postico](https://eggerapps.at/postico2/)** - Mac PostgreSQL client
+
+**Quick Connection URL:**
+```
+postgresql://roomiesync:password@localhost:5433/roomiesync_db
+```
+
+### Built-in Database Shell
+
+Access PostgreSQL directly from terminal:
+```bash
+npm run db:shell
+```
+
+This connects you to the `psql` command line interface where you can run SQL queries directly.
 
 ## Development Notes
 
