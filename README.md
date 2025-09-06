@@ -5,6 +5,7 @@ RoomieSync is a mobile-first household management app designed for young profess
 It's designed to solve a problem I actually have, and to be a great way to learn full-stack mobile app development and deployment while leveraging AI workflows.
 
 [Design Document](https://docs.google.com/document/d/16kmtYjyTy2DqEbA56CT4O5SQJ3vLcLM_Tp-RjinsQFA/edit?usp=sharing)
+
 [Figma Mockups](https://www.figma.com/design/fOrbvWAOUYBdhp3Mvsl353/RoomieSync-Mockups?node-id=0-1&t=l8qHTbqlt3hCmWuR-1)
 
 AI Assistance Attribution:
