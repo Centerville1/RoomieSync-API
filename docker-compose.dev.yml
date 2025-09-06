@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database (same as production)
+  postgres:
+    image: postgres:15-alpine
+    container_name: roomiesync-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: roomiesync_db
+      POSTGRES_USER: roomiesync
+      POSTGRES_PASSWORD: password
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+    networks:
+      - roomiesync-dev-network
+
+  # pgAdmin for database management
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: roomiesync-pgadmin-dev
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@roomiesync.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "5050:80"
+    networks:
+      - roomiesync-dev-network
+
+volumes:
+  postgres_dev_data:
+
+networks:
+  roomiesync-dev-network:
+    driver: bridge
