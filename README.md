@@ -8,12 +8,17 @@ It's designed to solve a problem I actually have, and to be a great way to learn
 
 [Figma Mockups](https://www.figma.com/design/fOrbvWAOUYBdhp3Mvsl353/RoomieSync-Mockups?node-id=0-1&t=l8qHTbqlt3hCmWuR-1)
 
-AI Assistance Attribution:
+--
+
+### AI Assistance Attribution:
+
 This project is largely made feasible as a solo developer by leveraging AI tools and workflows to greatly speed up the development process, allowing me to focus on high level design, product, and feature design rather than spending vast quantities of time on detailed implementation.  All code is reviewed and tested by me, and follows my design and specifications
 
-🤖 Generated in-part with Claude Code
+##### 🤖 Generated in-part with Claude Code
 
 Co-Authored-By: Claude noreply@anthropic.com
+
+--
 
 # RoomieSync API
 
