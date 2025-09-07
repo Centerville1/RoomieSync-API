@@ -38,7 +38,7 @@ docker run --name roomiesync-postgres \
 # 3. Update .env file with your credentials:
 
 CLOUDINARY_CLOUD_NAME=your-cloud-name-here
-CLOUDINARY_API_KEY=your-api-key-here  
+CLOUDINARY_API_KEY=your-api-key-here
 CLOUDINARY_API_SECRET=your-api-secret-here
 
 # Free tier includes:
@@ -143,33 +143,35 @@ railway status
 
 ## Environment Variables Reference
 
-| Variable | Local Development | Railway Production |
-|----------|------------------|-------------------|
-| `NODE_ENV` | `development` | `production` |
-| `PORT` | `3001` | `3001` |
-| `JWT_SECRET` | Generated 64-byte hex | Generated 64-byte hex |
-| `JWT_EXPIRES_IN` | `7d` | `7d` |
-| `FRONTEND_URL` | `http://localhost:3000` | `https://yourdomain.com` |
-| `DB_HOST` | `localhost` | Railway provided |
-| `DB_PORT` | `5433` | `5432` |
-| `DB_USERNAME` | `roomiesync` | Railway provided |
-| `DB_PASSWORD` | `password` | Railway provided |
-| `DB_NAME` | `roomiesync_db` | Railway provided |
+| Variable         | Local Development       | Railway Production       |
+| ---------------- | ----------------------- | ------------------------ |
+| `NODE_ENV`       | `development`           | `production`             |
+| `PORT`           | `3001`                  | `3001`                   |
+| `JWT_SECRET`     | Generated 64-byte hex   | Generated 64-byte hex    |
+| `JWT_EXPIRES_IN` | `7d`                    | `7d`                     |
+| `FRONTEND_URL`   | `http://localhost:3000` | `https://yourdomain.com` |
+| `DB_HOST`        | `localhost`             | Railway provided         |
+| `DB_PORT`        | `5433`                  | `5432`                   |
+| `DB_USERNAME`    | `roomiesync`            | Railway provided         |
+| `DB_PASSWORD`    | `password`              | Railway provided         |
+| `DB_NAME`        | `roomiesync_db`         | Railway provided         |
 
 ---
 
 ## Quick Commands Reference
 
 ### Local Development
+
 ```bash
 cp .env.example .env                    # Copy environment template
 node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"  # Generate JWT secret
-npm install                             # Install dependencies  
+npm install                             # Install dependencies
 npm run start:dev                       # Start development server
 curl http://localhost:3001/health       # Test API
 ```
 
 ### Railway Deployment
+
 ```bash
 railway login                           # Login to Railway
 railway init                            # Initialize project
