@@ -5,6 +5,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { User, House, HouseMembership, MemberRole } from '../entities';
 import { RegisterDto } from './dto/register.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @Injectable()
 export class AuthService {
@@ -123,5 +124,28 @@ export class AuthService {
 
     // Return login response
     return this.login(savedUser);
+  }
+
+  async updateProfile(userId: string, updateProfileDto: UpdateProfileDto) {
+    const user = await this.usersRepository.findOne({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    // Update user fields if provided
+    if (updateProfileDto.firstName) user.firstName = updateProfileDto.firstName;
+    if (updateProfileDto.lastName) user.lastName = updateProfileDto.lastName;
+    if (updateProfileDto.phoneNumber !== undefined) user.phoneNumber = updateProfileDto.phoneNumber;
+    if (updateProfileDto.profileImageUrl !== undefined) user.profileImageUrl = updateProfileDto.profileImageUrl;
+    if (updateProfileDto.color) user.color = updateProfileDto.color;
+
+    const updatedUser = await this.usersRepository.save(user);
+
+    // Return user without password
+    const { password, ...result } = updatedUser;
+    return result;
   }
 }

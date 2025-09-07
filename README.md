@@ -76,6 +76,7 @@ A NestJS backend API for managing shared expenses, payments, and multi-house roo
 ## Documentation
 
 - **📋 [API.md](./API.md)** - Complete API reference with examples
+- **⚙️ [ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md)** - Environment configuration & deployment guide
 - **📚 Interactive Docs** - Visit http://localhost:3001/api when running
 
 ### Using Swagger UI
@@ -115,27 +116,16 @@ The interactive Swagger documentation provides:
 - `GET /health` - Service health check
 - `GET /` - Welcome message
 
-## Environment Variables
+## Environment Configuration
 
-The app uses these environment variables (configured in `.env`):
+Environment variables are configured in `.env` files. See **[ENVIRONMENT_SETUP.md](./ENVIRONMENT_SETUP.md)** for:
 
-```env
-# Database
-DB_HOST=localhost
-DB_PORT=5433
-DB_USERNAME=roomiesync
-DB_PASSWORD=password
-DB_NAME=roomiesync_db
+- 🔧 **Local development setup**
+- 🚀 **Railway production deployment** 
+- 🔐 **Secure JWT secret generation**
+- 📝 **Complete environment variables reference**
 
-# JWT
-JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
-JWT_EXPIRES_IN=7d
-
-# App
-PORT=3001
-NODE_ENV=development
-FRONTEND_URL=http://localhost:3000
-```
+**Quick setup:** `cp .env.example .env` then generate a secure JWT secret.
 
 ## Database Access
 

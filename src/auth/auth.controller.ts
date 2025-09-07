@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Request, UseGuards, Get } from '@nestjs/common';
+import { Controller, Post, Body, Request, UseGuards, Get, Patch } from '@nestjs/common';
 import { 
   ApiTags, 
   ApiOperation, 
@@ -12,6 +12,7 @@ import {
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
@@ -143,5 +144,38 @@ export class AuthController {
   })
   getProfile(@Request() req) {
     return req.user;
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('profile')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Update user profile',
+    description: 'Update user profile information including name, phone, profile image, and color'
+  })
+  @ApiBody({ type: UpdateProfileDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Profile updated successfully',
+    schema: {
+      example: {
+        id: 'uuid',
+        email: 'john@example.com',
+        firstName: 'John',
+        lastName: 'Doe',
+        phoneNumber: '+1234567890',
+        profileImageUrl: 'https://example.com/profile.jpg',
+        color: '#6366F1'
+      }
+    }
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid input data or invalid URL/color format'
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or missing JWT token'
+  })
+  async updateProfile(@Request() req, @Body() updateProfileDto: UpdateProfileDto) {
+    return this.authService.updateProfile(req.user.id, updateProfileDto);
   }
 }
