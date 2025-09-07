@@ -34,6 +34,12 @@ export class User {
   @Column({ default: true })
   isActive: boolean;
 
+  @Column({ nullable: true })
+  profileImageUrl: string;
+
+  @Column({ default: '#6366F1' }) // Default indigo color
+  color: string;
+
   @CreateDateColumn()
   createdAt: Date;
 

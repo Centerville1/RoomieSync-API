@@ -19,10 +19,12 @@ http://localhost:3001
 | **Authentication** | POST | `/auth/register` | Register new user |
 | **Authentication** | POST | `/auth/login` | Login user |
 | **Authentication** | GET | `/auth/profile` | Get user profile |
+| **Authentication** | PATCH | `/auth/profile` | Update user profile |
 | **Houses** | POST | `/houses` | Create house |
 | **Houses** | POST | `/houses/join` | Join house |
 | **Houses** | GET | `/houses` | Get user houses |
 | **Houses** | GET | `/houses/{id}` | Get house details |
+| **Houses** | PATCH | `/houses/{id}` | Update house details |
 | **Expenses** | POST | `/houses/{houseId}/expenses` | Create expense |
 | **Expenses** | GET | `/houses/{houseId}/expenses` | Get house expenses |
 | **Expenses** | GET | `/houses/{houseId}/expenses/{expenseId}` | Get expense details |
@@ -38,6 +40,7 @@ http://localhost:3001
 - **⚖️ Balance Management** - Automatic calculation of who owes what to whom
 - **💸 Payment Recording** - Record payments between house members with balance updates
 - **📊 Categorization** - Organize expenses by categories
+- **🎨 Customization** - User profile images/colors and house images/colors
 - **📋 Comprehensive API** - Full CRUD operations with detailed error handling
 
 ## Authentication
@@ -146,6 +149,44 @@ Retrieve the authenticated user's profile information.
   "email": "john@example.com",
   "firstName": "John",
   "lastName": "Doe"
+}
+```
+
+### 🎨 Update User Profile
+**PATCH** `/auth/profile`
+
+**Headers:** `Authorization: Bearer <token>`
+
+Update user profile information including name, phone, profile image, and color.
+
+**Request Body:**
+```json
+{
+  "firstName": "John",                              // Optional
+  "lastName": "Doe",                                // Optional
+  "phoneNumber": "+1234567890",                     // Optional
+  "profileImageUrl": "https://example.com/profile.jpg", // Optional
+  "color": "#FF5733"                                // Optional hex color
+}
+```
+
+**Responses:**
+- **200 OK**: Profile updated successfully
+- **400 Bad Request**: Invalid input data or invalid URL/color format
+- **401 Unauthorized**: Invalid or missing JWT token
+
+**Success Response:**
+```json
+{
+  "id": "uuid",
+  "email": "john@example.com",
+  "firstName": "John",
+  "lastName": "Doe",
+  "phoneNumber": "+1234567890",
+  "profileImageUrl": "https://example.com/profile.jpg",
+  "color": "#FF5733",
+  "createdAt": "2025-09-06T12:00:00Z",
+  "updatedAt": "2025-09-07T14:00:00Z"
 }
 ```
 
@@ -320,6 +361,49 @@ Get detailed information about a specific house including all members.
       "email": "john@example.com"
     }
   }]
+}
+```
+
+### 🎨 Update House Details
+**PATCH** `/houses/{id}`
+
+**Headers:** `Authorization: Bearer <token>`
+
+Update house information including name, address, description, image, and color. Only admins can update house details.
+
+**Parameters:**
+- `id` (path): House UUID
+
+**Request Body:**
+```json
+{
+  "name": "Updated House Name",                     // Optional
+  "address": "456 New Address St, City, State",    // Optional
+  "description": "Updated house description",       // Optional
+  "imageUrl": "https://example.com/house.jpg",      // Optional
+  "color": "#10B981"                               // Optional hex color
+}
+```
+
+**Responses:**
+- **200 OK**: House updated successfully
+- **400 Bad Request**: Invalid input data or invalid URL/color format
+- **401 Unauthorized**: Invalid or missing JWT token
+- **403 Forbidden**: Only admins can update house details
+- **404 Not Found**: House not found or user is not a member
+
+**Success Response:**
+```json
+{
+  "id": "uuid",
+  "name": "Updated House Name",
+  "address": "456 New Address St",
+  "description": "Updated house description",
+  "inviteCode": "HOUSE123",
+  "imageUrl": "https://example.com/house.jpg",
+  "color": "#10B981",
+  "createdAt": "2025-09-06T12:00:00Z",
+  "updatedAt": "2025-09-07T14:00:00Z"
 }
 ```
 
@@ -603,6 +687,8 @@ Welcome to RoomieSync API! 🏠
   firstName: string;    // User's first name
   lastName: string;     // User's last name
   phoneNumber?: string; // Optional phone number
+  profileImageUrl?: string; // Optional profile image URL
+  color: string;        // User color (default: #6366F1)
   isActive: boolean;    // Account status
   createdAt: Date;      // Account creation date
   updatedAt: Date;      // Last update date
@@ -618,6 +704,8 @@ Welcome to RoomieSync API! 🏠
   address?: string;     // Optional house address
   description?: string; // Optional description
   inviteCode: string;   // Unique invite code
+  imageUrl?: string;    // Optional house image URL
+  color: string;        // House color (default: #10B981)
   isActive: boolean;    // House status
   createdAt: Date;      // Creation date
   updatedAt: Date;      // Last update date
@@ -768,6 +856,18 @@ curl -X GET http://localhost:3001/auth/profile \
   -H "Authorization: Bearer TOKEN"
 ```
 
+**4. Update profile:**
+```bash
+curl -X PATCH http://localhost:3001/auth/profile \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer TOKEN" \
+  -d '{
+    "firstName": "Updated",
+    "profileImageUrl": "https://example.com/new-profile.jpg",
+    "color": "#FF5733"
+  }'
+```
+
 #### House Management
 
 **Create a house:**
@@ -804,6 +904,18 @@ curl -X GET http://localhost:3001/houses \
 ```bash
 curl -X GET http://localhost:3001/houses/HOUSE_ID \
   -H "Authorization: Bearer TOKEN"
+```
+
+**Update house details (admin only):**
+```bash
+curl -X PATCH http://localhost:3001/houses/HOUSE_ID \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer TOKEN" \
+  -d '{
+    "name": "Updated House Name",
+    "imageUrl": "https://example.com/house.jpg",
+    "color": "#10B981"
+  }'
 ```
 
 #### Expense Management

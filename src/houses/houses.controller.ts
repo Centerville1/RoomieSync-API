@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Request, Patch } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -14,6 +14,7 @@ import {
 import { HousesService } from './houses.service';
 import { CreateHouseDto } from './dto/create-house.dto';
 import { JoinHouseDto } from './dto/join-house.dto';
+import { UpdateHouseDto } from './dto/update-house.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('Houses')
@@ -238,5 +239,52 @@ export class HousesController {
   })
   async getHouseDetails(@Param('id') id: string, @Request() req) {
     return this.housesService.getHouseDetails(id, req.user.id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch(':id')
+  @ApiBearerAuth('JWT-auth')
+  @ApiOperation({
+    summary: 'Update house details',
+    description: 'Update house information including name, address, description, image, and color. Only admins can update house details.'
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'House UUID',
+    example: 'uuid'
+  })
+  @ApiBody({ type: UpdateHouseDto })
+  @ApiResponse({
+    status: 200,
+    description: 'House updated successfully',
+    schema: {
+      example: {
+        id: 'uuid',
+        name: 'Updated House Name',
+        address: '456 New Address St',
+        description: 'Updated description',
+        inviteCode: 'HOUSE123',
+        imageUrl: 'https://example.com/house.jpg',
+        color: '#10B981',
+        createdAt: '2025-09-06T12:00:00Z',
+        updatedAt: '2025-09-07T14:00:00Z'
+      }
+    }
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid input data or invalid URL/color format'
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or missing JWT token'
+  })
+  @ApiNotFoundResponse({
+    description: 'House not found, user is not a member, or user is not an admin'
+  })
+  async updateHouse(
+    @Param('id') id: string,
+    @Body() updateHouseDto: UpdateHouseDto,
+    @Request() req
+  ) {
+    return this.housesService.updateHouse(id, req.user.id, updateHouseDto);
   }
 }

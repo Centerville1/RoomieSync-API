@@ -6,6 +6,7 @@ import { HouseMembership } from '../entities/house-membership.entity';
 import { User } from '../entities/user.entity';
 import { CreateHouseDto } from './dto/create-house.dto';
 import { JoinHouseDto } from './dto/join-house.dto';
+import { UpdateHouseDto } from './dto/update-house.dto';
 import { MemberRole } from '../entities/house-membership.entity';
 
 @Injectable()
@@ -195,6 +196,50 @@ export class HousesService {
             email: membership.user.email
           }
         }))
+    };
+  }
+
+  async updateHouse(houseId: string, userId: string, updateHouseDto: UpdateHouseDto) {
+    // Verify user is an admin of the house
+    const userMembership = await this.houseMembershipsRepository.findOne({
+      where: { userId, houseId, isActive: true }
+    });
+
+    if (!userMembership) {
+      throw new NotFoundException('House not found or you are not a member');
+    }
+
+    if (userMembership.role !== MemberRole.ADMIN) {
+      throw new ConflictException('Only admins can update house details');
+    }
+
+    const house = await this.housesRepository.findOne({
+      where: { id: houseId }
+    });
+
+    if (!house) {
+      throw new NotFoundException('House not found');
+    }
+
+    // Update house fields if provided
+    if (updateHouseDto.name) house.name = updateHouseDto.name;
+    if (updateHouseDto.address !== undefined) house.address = updateHouseDto.address;
+    if (updateHouseDto.description !== undefined) house.description = updateHouseDto.description;
+    if (updateHouseDto.imageUrl !== undefined) house.imageUrl = updateHouseDto.imageUrl;
+    if (updateHouseDto.color) house.color = updateHouseDto.color;
+
+    const updatedHouse = await this.housesRepository.save(house);
+
+    return {
+      id: updatedHouse.id,
+      name: updatedHouse.name,
+      address: updatedHouse.address,
+      description: updatedHouse.description,
+      inviteCode: updatedHouse.inviteCode,
+      imageUrl: updatedHouse.imageUrl,
+      color: updatedHouse.color,
+      createdAt: updatedHouse.createdAt,
+      updatedAt: updatedHouse.updatedAt
     };
   }
 }

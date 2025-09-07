@@ -32,6 +32,12 @@ export class House {
   @Column({ default: true })
   isActive: boolean;
 
+  @Column({ nullable: true })
+  imageUrl: string;
+
+  @Column({ default: '#10B981' }) // Default emerald color
+  color: string;
+
   @CreateDateColumn()
   createdAt: Date;
 
