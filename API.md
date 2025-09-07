@@ -20,11 +20,13 @@ http://localhost:3001
 | **Authentication** | POST | `/auth/login` | Login user |
 | **Authentication** | GET | `/auth/profile` | Get user profile |
 | **Authentication** | PATCH | `/auth/profile` | Update user profile |
+| **Authentication** | POST | `/auth/upload-profile-image` | Upload profile image |
 | **Houses** | POST | `/houses` | Create house |
 | **Houses** | POST | `/houses/join` | Join house |
 | **Houses** | GET | `/houses` | Get user houses |
 | **Houses** | GET | `/houses/{id}` | Get house details |
 | **Houses** | PATCH | `/houses/{id}` | Update house details |
+| **Houses** | POST | `/houses/{id}/upload-image` | Upload house image |
 | **Expenses** | POST | `/houses/{houseId}/expenses` | Create expense |
 | **Expenses** | GET | `/houses/{houseId}/expenses` | Get house expenses |
 | **Expenses** | GET | `/houses/{houseId}/expenses/{expenseId}` | Get expense details |
@@ -40,7 +42,8 @@ http://localhost:3001
 - **⚖️ Balance Management** - Automatic calculation of who owes what to whom
 - **💸 Payment Recording** - Record payments between house members with balance updates
 - **📊 Categorization** - Organize expenses by categories
-- **🎨 Customization** - User profile images/colors and house images/colors
+- **🎨 Customization** - User profile images/colors and house images/colors with Cloudinary integration
+- **📸 Image Upload** - Secure image uploads with automatic optimization and CDN delivery
 - **📋 Comprehensive API** - Full CRUD operations with detailed error handling
 
 ## Authentication
@@ -185,6 +188,40 @@ Update user profile information including name, phone, profile image, and color.
   "phoneNumber": "+1234567890",
   "profileImageUrl": "https://example.com/profile.jpg",
   "color": "#FF5733",
+  "createdAt": "2025-09-06T12:00:00Z",
+  "updatedAt": "2025-09-07T14:00:00Z"
+}
+```
+
+### 📸 Upload Profile Image
+**POST** `/auth/upload-profile-image`
+
+**Headers:** `Authorization: Bearer <token>`, `Content-Type: multipart/form-data`
+
+Upload a profile image and automatically update the user's profileImageUrl. Images are uploaded to Cloudinary with automatic optimization.
+
+**Supported formats:** JPEG, PNG, GIF, WebP  
+**Maximum file size:** 5MB  
+**Automatic optimization:** Yes (quality, format, resizing)  
+
+**Form Data:**
+- `image` (file): The image file to upload
+
+**Responses:**
+- **201 Created**: Image uploaded successfully
+- **400 Bad Request**: Invalid file format, file too large, or upload failed
+- **401 Unauthorized**: Invalid or missing JWT token
+
+**Success Response:**
+```json
+{
+  "id": "uuid",
+  "email": "john@example.com",
+  "firstName": "John",
+  "lastName": "Doe",
+  "phoneNumber": "+1234567890",
+  "profileImageUrl": "https://res.cloudinary.com/your-cloud/image/upload/v1234567890/roomiesync/profiles/abc123.jpg",
+  "color": "#6366F1",
   "createdAt": "2025-09-06T12:00:00Z",
   "updatedAt": "2025-09-07T14:00:00Z"
 }
@@ -401,6 +438,45 @@ Update house information including name, address, description, image, and color.
   "description": "Updated house description",
   "inviteCode": "HOUSE123",
   "imageUrl": "https://example.com/house.jpg",
+  "color": "#10B981",
+  "createdAt": "2025-09-06T12:00:00Z",
+  "updatedAt": "2025-09-07T14:00:00Z"
+}
+```
+
+### 📸 Upload House Image
+**POST** `/houses/{id}/upload-image`
+
+**Headers:** `Authorization: Bearer <token>`, `Content-Type: multipart/form-data`
+
+Upload a house image and automatically update the house's imageUrl. Only house admins can upload images. Images are uploaded to Cloudinary with automatic optimization.
+
+**Parameters:**
+- `id` (path): House UUID
+
+**Supported formats:** JPEG, PNG, GIF, WebP  
+**Maximum file size:** 10MB  
+**Automatic optimization:** Yes (quality, format, resizing to 1200x800)  
+
+**Form Data:**
+- `image` (file): The image file to upload
+
+**Responses:**
+- **201 Created**: Image uploaded successfully
+- **400 Bad Request**: Invalid file format, file too large, or upload failed
+- **401 Unauthorized**: Invalid or missing JWT token
+- **403 Forbidden**: Only admins can upload house images
+- **404 Not Found**: House not found or user is not a member
+
+**Success Response:**
+```json
+{
+  "id": "uuid",
+  "name": "My House",
+  "address": "123 Main St",
+  "description": "A cozy house",
+  "inviteCode": "HOUSE123",
+  "imageUrl": "https://res.cloudinary.com/your-cloud/image/upload/v1234567890/roomiesync/houses/def456.jpg",
   "color": "#10B981",
   "createdAt": "2025-09-06T12:00:00Z",
   "updatedAt": "2025-09-07T14:00:00Z"
@@ -868,6 +944,13 @@ curl -X PATCH http://localhost:3001/auth/profile \
   }'
 ```
 
+**5. Upload profile image:**
+```bash
+curl -X POST http://localhost:3001/auth/upload-profile-image \
+  -H "Authorization: Bearer TOKEN" \
+  -F "image=@/path/to/your/profile-image.jpg"
+```
+
 #### House Management
 
 **Create a house:**
@@ -916,6 +999,13 @@ curl -X PATCH http://localhost:3001/houses/HOUSE_ID \
     "imageUrl": "https://example.com/house.jpg",
     "color": "#10B981"
   }'
+```
+
+**Upload house image (admin only):**
+```bash
+curl -X POST http://localhost:3001/houses/HOUSE_ID/upload-image \
+  -H "Authorization: Bearer TOKEN" \
+  -F "image=@/path/to/your/house-image.jpg"
 ```
 
 #### Expense Management

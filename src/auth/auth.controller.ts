@@ -1,4 +1,5 @@
-import { Controller, Post, Body, Request, UseGuards, Get, Patch } from '@nestjs/common';
+import { Controller, Post, Body, Request, UseGuards, Get, Patch, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { 
   ApiTags, 
   ApiOperation, 
@@ -7,7 +8,8 @@ import {
   ApiBearerAuth,
   ApiUnauthorizedResponse,
   ApiBadRequestResponse,
-  ApiConflictResponse
+  ApiConflictResponse,
+  ApiConsumes
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -15,11 +17,15 @@ import { LoginDto } from './dto/login.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { LocalAuthGuard } from './guards/local-auth.guard';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { UploadService } from '../upload/upload.service';
 
 @ApiTags('Authentication')
 @Controller('auth')
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  constructor(
+    private authService: AuthService,
+    private uploadService: UploadService
+  ) {}
 
   @Post('register')
   @ApiOperation({ 
@@ -177,5 +183,77 @@ export class AuthController {
   })
   async updateProfile(@Request() req, @Body() updateProfileDto: UpdateProfileDto) {
     return this.authService.updateProfile(req.user.id, updateProfileDto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('upload-profile-image')
+  @ApiBearerAuth('JWT-auth')
+  @UseInterceptors(FileInterceptor('image', {
+    limits: { 
+      fileSize: 5 * 1024 * 1024 // 5MB limit
+    },
+    fileFilter: (req, file, cb) => {
+      // Only allow image files
+      if (!file.mimetype.match(/^image\/(jpeg|jpg|png|gif|webp)$/)) {
+        return cb(new Error('Only image files (JPEG, PNG, GIF, WebP) are allowed'), false);
+      }
+      cb(null, true);
+    }
+  }))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Upload profile image',
+    description: 'Upload a profile image and automatically update the user\'s profileImageUrl. Supports JPEG, PNG, GIF, and WebP formats. Maximum file size: 5MB.'
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        image: {
+          type: 'string',
+          format: 'binary',
+          description: 'Profile image file'
+        }
+      }
+    }
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Profile image uploaded successfully',
+    schema: {
+      example: {
+        id: 'uuid',
+        email: 'john@example.com',
+        firstName: 'John',
+        lastName: 'Doe',
+        phoneNumber: '+1234567890',
+        profileImageUrl: 'https://res.cloudinary.com/your-cloud/image/upload/v1234567890/roomiesync/profiles/abc123.jpg',
+        color: '#6366F1'
+      }
+    }
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid file format, file too large, or upload failed',
+    schema: {
+      example: {
+        statusCode: 400,
+        message: 'Only image files (JPEG, PNG, GIF, WebP) are allowed',
+        error: 'Bad Request'
+      }
+    }
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or missing JWT token'
+  })
+  async uploadProfileImage(@UploadedFile() file: Express.Multer.File, @Request() req) {
+    if (!file) {
+      throw new BadRequestException('No image file provided');
+    }
+
+    // Upload to Cloudinary
+    const imageUrl = await this.uploadService.uploadImage(file, 'profiles');
+    
+    // Update user's profile image URL
+    return this.authService.updateProfile(req.user.id, { profileImageUrl: imageUrl });
   }
 }

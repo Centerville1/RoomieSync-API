@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Request, Patch } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Request, Patch, UseInterceptors, UploadedFile, BadRequestException } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiTags,
   ApiOperation,
@@ -9,20 +10,25 @@ import {
   ApiBadRequestResponse,
   ApiConflictResponse,
   ApiNotFoundResponse,
-  ApiParam
+  ApiParam,
+  ApiConsumes
 } from '@nestjs/swagger';
 import { HousesService } from './houses.service';
 import { CreateHouseDto } from './dto/create-house.dto';
 import { JoinHouseDto } from './dto/join-house.dto';
 import { UpdateHouseDto } from './dto/update-house.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { UploadService } from '../upload/upload.service';
 
 @ApiTags('Houses')
 @Controller('houses')
 @UseGuards(JwtAuthGuard)
 @ApiBearerAuth('JWT-auth')
 export class HousesController {
-  constructor(private readonly housesService: HousesService) {}
+  constructor(
+    private readonly housesService: HousesService,
+    private readonly uploadService: UploadService
+  ) {}
 
   @Post()
   @ApiOperation({
@@ -286,5 +292,92 @@ export class HousesController {
     @Request() req
   ) {
     return this.housesService.updateHouse(id, req.user.id, updateHouseDto);
+  }
+
+  @Post(':id/upload-image')
+  @UseInterceptors(FileInterceptor('image', {
+    limits: { 
+      fileSize: 10 * 1024 * 1024 // 10MB limit (larger for house images)
+    },
+    fileFilter: (req, file, cb) => {
+      // Only allow image files
+      if (!file.mimetype.match(/^image\/(jpeg|jpg|png|gif|webp)$/)) {
+        return cb(new Error('Only image files (JPEG, PNG, GIF, WebP) are allowed'), false);
+      }
+      cb(null, true);
+    }
+  }))
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Upload house image',
+    description: 'Upload a house image and automatically update the house\'s imageUrl. Only house admins can upload images. Supports JPEG, PNG, GIF, and WebP formats. Maximum file size: 10MB.'
+  })
+  @ApiParam({
+    name: 'id',
+    description: 'House UUID',
+    example: 'uuid'
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        image: {
+          type: 'string',
+          format: 'binary',
+          description: 'House image file'
+        }
+      }
+    }
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'House image uploaded successfully',
+    schema: {
+      example: {
+        id: 'uuid',
+        name: 'Updated House Name',
+        address: '456 New Address St',
+        description: 'Updated description',
+        inviteCode: 'HOUSE123',
+        imageUrl: 'https://res.cloudinary.com/your-cloud/image/upload/v1234567890/roomiesync/houses/def456.jpg',
+        color: '#10B981',
+        createdAt: '2025-09-06T12:00:00Z',
+        updatedAt: '2025-09-07T14:00:00Z'
+      }
+    }
+  })
+  @ApiBadRequestResponse({
+    description: 'Invalid file format, file too large, or upload failed',
+    schema: {
+      example: {
+        statusCode: 400,
+        message: 'Only image files (JPEG, PNG, GIF, WebP) are allowed',
+        error: 'Bad Request'
+      }
+    }
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or missing JWT token'
+  })
+  @ApiNotFoundResponse({
+    description: 'House not found, user is not a member, or user is not an admin'
+  })
+  async uploadHouseImage(
+    @Param('id') houseId: string,
+    @UploadedFile() file: Express.Multer.File,
+    @Request() req
+  ) {
+    if (!file) {
+      throw new BadRequestException('No image file provided');
+    }
+
+    // Upload to Cloudinary
+    const imageUrl = await this.uploadService.uploadImage(file, 'houses', [
+      { width: 1200, height: 800, crop: 'limit' }, // Larger dimensions for house images
+      { quality: 'auto' }
+    ]);
+    
+    // Update house image URL (this automatically checks admin permissions)
+    return this.housesService.updateHouse(houseId, req.user.id, { imageUrl });
   }
 }
