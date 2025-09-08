@@ -5,12 +5,15 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
+  OneToOne,
+  JoinColumn,
 } from 'typeorm';
 import { Expense } from './expense.entity';
 import { Payment } from './payment.entity';
 import { Balance } from './balance.entity';
 import { Category } from './category.entity';
 import { HouseMembership } from './house-membership.entity';
+import { ShoppingList } from './shopping-list.entity';
 
 @Entity('houses')
 export class House {
@@ -59,6 +62,16 @@ export class House {
 
   @OneToMany(() => Category, (category) => category.house)
   categories: Category[];
+
+  @OneToOne(() => ShoppingList, (shoppingList) => shoppingList.primaryForHouse, { nullable: true })
+  @JoinColumn()
+  primaryShoppingList: ShoppingList;
+
+  @Column({ nullable: true })
+  primaryShoppingListId: string;
+
+  @OneToMany(() => ShoppingList, (shoppingList) => shoppingList.house)
+  secondaryShoppingLists: ShoppingList[];
 
   // Helper method to get member count
   get memberCount(): number {

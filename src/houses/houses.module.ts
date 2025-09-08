@@ -5,9 +5,10 @@ import { HousesController } from './houses.controller';
 import { House } from '../entities/house.entity';
 import { HouseMembership } from '../entities/house-membership.entity';
 import { User } from '../entities/user.entity';
+import { ShoppingList } from '../entities/shopping-list.entity';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([House, HouseMembership, User])],
+  imports: [TypeOrmModule.forFeature([House, HouseMembership, User, ShoppingList])],
   controllers: [HousesController],
   providers: [HousesService],
   exports: [HousesService],
