@@ -30,7 +30,25 @@ docker run --name roomiesync-postgres \
 # createuser roomiesync
 ```
 
-### 3. Install and Run
+### 3. Configure Cloudinary (Image Uploads)
+
+```bash
+# 1. Sign up for free Cloudinary account at https://cloudinary.com
+# 2. Get your credentials from Dashboard > Settings
+# 3. Update .env file with your credentials:
+
+CLOUDINARY_CLOUD_NAME=your-cloud-name-here
+CLOUDINARY_API_KEY=your-api-key-here
+CLOUDINARY_API_SECRET=your-api-secret-here
+
+# Free tier includes:
+# - 25GB storage
+# - 25GB monthly bandwidth
+# - Automatic image optimization
+# - Global CDN delivery
+```
+
+### 4. Install and Run
 
 ```bash
 # Install dependencies
@@ -40,7 +58,7 @@ npm install
 npm run start:dev
 ```
 
-### 4. Verify Setup
+### 5. Verify Setup
 
 ```bash
 # Test health endpoint
@@ -95,6 +113,11 @@ railway variables set PORT=3001
 # Set frontend URL (replace with your actual frontend domain)
 railway variables set FRONTEND_URL=https://your-frontend-domain.com
 
+# Cloudinary configuration (get from your Cloudinary dashboard)
+railway variables set CLOUDINARY_CLOUD_NAME=your-cloud-name
+railway variables set CLOUDINARY_API_KEY=your-api-key
+railway variables set CLOUDINARY_API_SECRET=your-api-secret
+
 # Database variables (if not using Railway's auto-generated ones)
 railway variables set DB_HOST=your-db-host
 railway variables set DB_PORT=5432
@@ -120,33 +143,35 @@ railway status
 
 ## Environment Variables Reference
 
-| Variable | Local Development | Railway Production |
-|----------|------------------|-------------------|
-| `NODE_ENV` | `development` | `production` |
-| `PORT` | `3001` | `3001` |
-| `JWT_SECRET` | Generated 64-byte hex | Generated 64-byte hex |
-| `JWT_EXPIRES_IN` | `7d` | `7d` |
-| `FRONTEND_URL` | `http://localhost:3000` | `https://yourdomain.com` |
-| `DB_HOST` | `localhost` | Railway provided |
-| `DB_PORT` | `5433` | `5432` |
-| `DB_USERNAME` | `roomiesync` | Railway provided |
-| `DB_PASSWORD` | `password` | Railway provided |
-| `DB_NAME` | `roomiesync_db` | Railway provided |
+| Variable         | Local Development       | Railway Production       |
+| ---------------- | ----------------------- | ------------------------ |
+| `NODE_ENV`       | `development`           | `production`             |
+| `PORT`           | `3001`                  | `3001`                   |
+| `JWT_SECRET`     | Generated 64-byte hex   | Generated 64-byte hex    |
+| `JWT_EXPIRES_IN` | `7d`                    | `7d`                     |
+| `FRONTEND_URL`   | `http://localhost:3000` | `https://yourdomain.com` |
+| `DB_HOST`        | `localhost`             | Railway provided         |
+| `DB_PORT`        | `5433`                  | `5432`                   |
+| `DB_USERNAME`    | `roomiesync`            | Railway provided         |
+| `DB_PASSWORD`    | `password`              | Railway provided         |
+| `DB_NAME`        | `roomiesync_db`         | Railway provided         |
 
 ---
 
 ## Quick Commands Reference
 
 ### Local Development
+
 ```bash
 cp .env.example .env                    # Copy environment template
 node -e "console.log(require('crypto').randomBytes(64).toString('hex'))"  # Generate JWT secret
-npm install                             # Install dependencies  
+npm install                             # Install dependencies
 npm run start:dev                       # Start development server
 curl http://localhost:3001/health       # Test API
 ```
 
 ### Railway Deployment
+
 ```bash
 railway login                           # Login to Railway
 railway init                            # Initialize project
