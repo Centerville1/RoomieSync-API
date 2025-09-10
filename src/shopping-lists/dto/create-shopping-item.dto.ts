@@ -61,4 +61,13 @@ export class CreateShoppingItemDto {
   @IsNumber()
   @Min(1)
   recurringInterval?: number;
+
+  @ApiPropertyOptional({
+    description: 'Force creation even if duplicate warnings exist',
+    example: false,
+    default: false
+  })
+  @IsOptional()
+  @IsBoolean()
+  force?: boolean;
 }

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, IsNull, Not, In } from 'typeorm';
 import { Cron } from '@nestjs/schedule';
@@ -112,13 +112,22 @@ export class ShoppingListsService {
     }));
   }
 
-  async addShoppingItem(houseId: string, userId: string, createDto: CreateShoppingItemDto): Promise<{ item: ShoppingItem; warnings?: string[] }> {
+  async addShoppingItem(houseId: string, userId: string, createDto: CreateShoppingItemDto): Promise<ShoppingItem> {
     await this.verifyHouseMembership(userId, houseId);
     
     const shoppingList = await this.getHouseShoppingList(houseId, userId);
 
     // Check for similar recent recurring items
     const warnings = await this.checkForSimilarRecurringItems(houseId, createDto.name);
+
+    // If warnings exist and force is not true, throw conflict
+    if (warnings.length > 0 && !createDto.force) {
+      throw new ConflictException({
+        message: 'Potential duplicate items detected',
+        warnings,
+        suggestion: 'Add "force": true to your request to proceed anyway'
+      });
+    }
 
     // Validate category if provided
     if (createDto.categoryId) {
@@ -159,12 +168,7 @@ export class ShoppingListsService {
       relations: ['category', 'assignedTo', 'purchasedBy']
     });
 
-    const result: { item: ShoppingItem; warnings?: string[] } = { item: itemWithRelations };
-    if (warnings.length > 0) {
-      result.warnings = warnings;
-    }
-
-    return result;
+    return itemWithRelations;
   }
 
   async updateShoppingItem(houseId: string, userId: string, itemId: string, updateDto: UpdateShoppingItemDto): Promise<ShoppingItem> {

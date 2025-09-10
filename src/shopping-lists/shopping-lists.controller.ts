@@ -9,7 +9,8 @@ import {
   ApiBadRequestResponse,
   ApiNotFoundResponse,
   ApiParam,
-  ApiQuery
+  ApiQuery,
+  ApiConflictResponse
 } from '@nestjs/swagger';
 import { ShoppingListsService } from './shopping-lists.service';
 import { CreateShoppingItemDto } from './dto/create-shopping-item.dto';
@@ -185,23 +186,30 @@ export class ShoppingListsController {
     description: 'Shopping item created successfully',
     schema: {
       example: {
-        item: {
+        id: 'uuid',
+        name: 'Eggs',
+        quantity: 12,
+        notes: 'Free range',
+        purchasedAt: null,
+        isRecurring: true,
+        recurringInterval: 14,
+        category: {
           id: 'uuid',
-          name: 'Eggs',
-          quantity: 12,
-          notes: 'Free range',
-          purchasedAt: null,
-          isRecurring: true,
-          recurringInterval: 14,
-          category: {
-            id: 'uuid',
-            name: 'Groceries'
-          },
-          assignedTo: null
+          name: 'Groceries'
         },
+        assignedTo: null
+      }
+    }
+  })
+  @ApiConflictResponse({
+    description: 'Potential duplicate items detected',
+    schema: {
+      example: {
+        message: 'Potential duplicate items detected',
         warnings: [
-          'Similar item "eggs" was recently purchased and will return in 5 day(s). Add anyway?'
-        ]
+          'Similar item "Milk" was recently purchased and will return in 5 day(s). Add anyway?'
+        ],
+        suggestion: 'Add "force": true to your request to proceed anyway'
       }
     }
   })

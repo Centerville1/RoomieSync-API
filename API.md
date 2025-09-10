@@ -31,6 +31,15 @@ http://localhost:3001
 | **Balances** | GET | `/houses/{houseId}/balances` | Get house balances |
 | **Payments** | POST | `/houses/{houseId}/payments` | Create payment |
 | **Payments** | GET | `/houses/{houseId}/payments` | Get house payments |
+| **Shopping Lists** | GET | `/houses/{houseId}/shopping-list` | Get house shopping list |
+| **Shopping Lists** | GET | `/houses/{houseId}/shopping-list/items` | Get shopping list items (with filtering) |
+| **Shopping Lists** | POST | `/houses/{houseId}/shopping-list/items` | Add shopping item |
+| **Shopping Lists** | PATCH | `/houses/{houseId}/shopping-list/items/{itemId}` | Update shopping item |
+| **Shopping Lists** | POST | `/houses/{houseId}/shopping-list/items/{itemId}/purchase` | Purchase shopping item |
+| **Shopping Lists** | POST | `/houses/{houseId}/shopping-list/items/batch-purchase` | Batch purchase items |
+| **Shopping Lists** | DELETE | `/houses/{houseId}/shopping-list/items/{itemId}` | Delete shopping item |
+| **Shopping Lists** | GET | `/houses/{houseId}/shopping-list/recent-recurring` | Get recent recurring items |
+| **Shopping Lists** | GET | `/houses/{houseId}/shopping-list/history` | Get purchase history |
 
 ### Key Features
 
@@ -40,6 +49,9 @@ http://localhost:3001
 - **⚖️ Balance Management** - Automatic calculation of who owes what to whom
 - **💸 Payment Recording** - Record payments between house members with balance updates
 - **📊 Categorization** - Organize expenses by categories
+- **🛒 Shopping Lists** - Collaborative shopping lists with recurring items and smart duplicate detection
+- **🔄 Recurring Items** - Auto-regenerating shopping items based on configurable intervals
+- **📝 Batch Operations** - Purchase multiple items at once for efficiency
 - **🎨 Customization** - User profile images/colors and house images/colors
 - **📋 Comprehensive API** - Full CRUD operations with detailed error handling
 
@@ -649,6 +661,354 @@ Get all payments in the house or just payments involving the authenticated user.
 
 ---
 
+## Shopping List Management Endpoints
+
+### 🛒 Get House Shopping List
+**GET** `/houses/{houseId}/shopping-list`
+
+**Headers:** `Authorization: Bearer <token>`
+
+Get the primary shopping list for a house with all items.
+
+**Parameters:**
+- `houseId` (path): House UUID
+
+**Responses:**
+- **200 OK**: House shopping list with items
+- **401 Unauthorized**: Invalid or missing JWT token
+- **403 Forbidden**: User is not a member of this house
+- **404 Not Found**: House not found or no shopping list exists
+
+**Success Response:**
+```json
+{
+  "id": "shopping-list-uuid",
+  "name": "Shopping List",
+  "isActive": true,
+  "createdAt": "2025-09-06T12:00:00Z",
+  "updatedAt": "2025-09-06T12:00:00Z",
+  "items": [{
+    "id": "item-uuid",
+    "name": "Milk",
+    "quantity": 2,
+    "notes": "2% milk",
+    "purchasedAt": null,
+    "isRecurring": true,
+    "recurringInterval": 7,
+    "category": {
+      "id": "category-uuid",
+      "name": "Groceries",
+      "color": "#6B7280"
+    },
+    "assignedTo": {
+      "id": "user-uuid",
+      "firstName": "John",
+      "lastName": "Doe"
+    }
+  }]
+}
+```
+
+### 📋 Get Shopping List Items (with filtering)
+**GET** `/houses/{houseId}/shopping-list/items`
+
+**Headers:** `Authorization: Bearer <token>`
+
+Get shopping list items with optional filtering.
+
+**Parameters:**
+- `houseId` (path): House UUID
+- `categoryId` (query, optional): Filter by category ID
+- `assignedToId` (query, optional): Filter by assigned user ID
+- `includePurchased` (query, optional): Include purchased items (default: false)
+
+**Responses:**
+- **200 OK**: Filtered shopping list items
+- **401 Unauthorized**: Invalid or missing JWT token
+- **403 Forbidden**: User is not a member of this house
+
+**Success Response:**
+```json
+[{
+  "id": "item-uuid",
+  "name": "Bread",
+  "quantity": 1,
+  "notes": null,
+  "purchasedAt": null,
+  "isRecurring": false,
+  "category": null,
+  "assignedTo": null
+}]
+```
+
+### ➕ Add Shopping Item
+**POST** `/houses/{houseId}/shopping-list/items`
+
+**Headers:** `Authorization: Bearer <token>`
+
+Add a new item to the shopping list with optional recurring settings and smart duplicate detection.
+
+**Parameters:**
+- `houseId` (path): House UUID
+
+**Request Body:**
+```json
+{
+  "name": "Eggs",
+  "quantity": 12,                    // Optional, default: 1
+  "notes": "Free range",             // Optional
+  "categoryId": "category-uuid",     // Optional
+  "assignedToId": "user-uuid",       // Optional
+  "isRecurring": true,               // Optional, default: false
+  "recurringInterval": 14,           // Required if isRecurring is true (days)
+  "force": false                     // Optional, set to true to bypass duplicate warnings
+}
+```
+
+**Responses:**
+- **201 Created**: Shopping item created successfully
+- **400 Bad Request**: Invalid input data, category not found, or assigned user not a member
+- **401 Unauthorized**: Invalid or missing JWT token
+- **403 Forbidden**: User is not a member of this house
+- **409 Conflict**: Potential duplicate items detected (see example below)
+
+**Success Response (201 Created):**
+```json
+{
+  "id": "item-uuid",
+  "name": "Eggs",
+  "quantity": 12,
+  "notes": "Free range",
+  "purchasedAt": null,
+  "isRecurring": true,
+  "recurringInterval": 14,
+  "category": {
+    "id": "category-uuid",
+    "name": "Groceries"
+  },
+  "assignedTo": null
+}
+```
+
+**Duplicate Detection Response (409 Conflict):**
+```json
+{
+  "statusCode": 409,
+  "message": "Potential duplicate items detected",
+  "warnings": [
+    "Similar item \"Milk\" was recently purchased and will return in 5 day(s). Add anyway?"
+  ],
+  "suggestion": "Add \"force\": true to your request to proceed anyway",
+  "error": "Conflict"
+}
+```
+
+**Bypassing Duplicate Detection:**
+To add the item despite warnings, include `"force": true` in your request body:
+```json
+{
+  "name": "Milk",
+  "quantity": 2,
+  "force": true
+}
+```
+
+### ✏️ Update Shopping Item
+**PATCH** `/houses/{houseId}/shopping-list/items/{itemId}`
+
+**Headers:** `Authorization: Bearer <token>`
+
+Update an existing shopping list item.
+
+**Parameters:**
+- `houseId` (path): House UUID
+- `itemId` (path): Shopping item UUID
+
+**Request Body:**
+```json
+{
+  "name": "Organic Milk",           // Optional
+  "quantity": 1,                    // Optional
+  "notes": "Organic 2% milk",       // Optional
+  "categoryId": "category-uuid",    // Optional
+  "assignedToId": "user-uuid",      // Optional
+  "isRecurring": false,             // Optional
+  "recurringInterval": null         // Optional
+}
+```
+
+**Responses:**
+- **200 OK**: Shopping item updated successfully
+- **400 Bad Request**: Invalid input data or validation errors
+- **401 Unauthorized**: Invalid or missing JWT token
+- **403 Forbidden**: User is not a member of this house
+- **404 Not Found**: Shopping item not found
+
+### 🛍️ Purchase Shopping Item
+**POST** `/houses/{houseId}/shopping-list/items/{itemId}/purchase`
+
+**Headers:** `Authorization: Bearer <token>`
+
+Mark a shopping item as purchased by the authenticated user.
+
+**Parameters:**
+- `houseId` (path): House UUID
+- `itemId` (path): Shopping item UUID
+
+**Responses:**
+- **200 OK**: Item marked as purchased successfully
+- **400 Bad Request**: Item is already purchased
+- **401 Unauthorized**: Invalid or missing JWT token
+- **403 Forbidden**: User is not a member of this house
+- **404 Not Found**: Shopping item not found
+
+**Success Response:**
+```json
+{
+  "id": "item-uuid",
+  "name": "Milk",
+  "purchasedAt": "2025-09-06T14:30:00Z",
+  "purchasedBy": {
+    "id": "user-uuid",
+    "firstName": "John",
+    "lastName": "Doe"
+  }
+}
+```
+
+### 📦 Batch Purchase Items
+**POST** `/houses/{houseId}/shopping-list/items/batch-purchase`
+
+**Headers:** `Authorization: Bearer <token>`
+
+Mark multiple shopping items as purchased in one operation.
+
+**Parameters:**
+- `houseId` (path): House UUID
+
+**Request Body:**
+```json
+{
+  "itemIds": ["item-uuid-1", "item-uuid-2", "item-uuid-3"]
+}
+```
+
+**Responses:**
+- **200 OK**: Items marked as purchased successfully
+- **400 Bad Request**: Some items do not belong to this house or are already purchased
+- **401 Unauthorized**: Invalid or missing JWT token
+- **403 Forbidden**: User is not a member of this house
+- **404 Not Found**: One or more shopping items not found
+
+**Success Response:**
+```json
+[{
+  "id": "item-uuid-1",
+  "name": "Bread",
+  "purchasedAt": "2025-09-06T14:30:00Z",
+  "purchasedBy": {
+    "id": "user-uuid",
+    "firstName": "John",
+    "lastName": "Doe"
+  }
+}]
+```
+
+### 🗑️ Delete Shopping Item
+**DELETE** `/houses/{houseId}/shopping-list/items/{itemId}`
+
+**Headers:** `Authorization: Bearer <token>`
+
+Remove a shopping item from the list.
+
+**Parameters:**
+- `houseId` (path): House UUID
+- `itemId` (path): Shopping item UUID
+
+**Responses:**
+- **200 OK**: Shopping item deleted successfully
+- **401 Unauthorized**: Invalid or missing JWT token
+- **403 Forbidden**: User is not a member of this house
+- **404 Not Found**: Shopping item not found
+
+**Success Response:**
+```json
+{
+  "message": "Shopping item deleted successfully"
+}
+```
+
+### 🔄 Get Recent Recurring Items
+**GET** `/houses/{houseId}/shopping-list/recent-recurring`
+
+**Headers:** `Authorization: Bearer <token>`
+
+Get recently purchased recurring items with countdown until they return to the shopping list.
+
+**Parameters:**
+- `houseId` (path): House UUID
+
+**Responses:**
+- **200 OK**: Recent recurring items with return countdown
+- **401 Unauthorized**: Invalid or missing JWT token
+- **403 Forbidden**: User is not a member of this house
+
+**Success Response:**
+```json
+[{
+  "id": "item-uuid",
+  "name": "Milk",
+  "quantity": 2,
+  "purchasedAt": "2025-09-01T10:00:00Z",
+  "recurringInterval": 7,
+  "daysUntilReturn": 3,
+  "hasRecurred": false,
+  "purchasedBy": {
+    "id": "user-uuid",
+    "firstName": "John",
+    "lastName": "Doe"
+  }
+}]
+```
+
+### 📜 Get Purchase History
+**GET** `/houses/{houseId}/shopping-list/history`
+
+**Headers:** `Authorization: Bearer <token>`
+
+Get all purchased items from the shopping list for historical tracking.
+
+**Parameters:**
+- `houseId` (path): House UUID
+
+**Responses:**
+- **200 OK**: Purchase history
+- **401 Unauthorized**: Invalid or missing JWT token
+- **403 Forbidden**: User is not a member of this house
+
+**Success Response:**
+```json
+[{
+  "id": "item-uuid",
+  "name": "Milk",
+  "quantity": 2,
+  "purchasedAt": "2025-09-05T10:00:00Z",
+  "isRecurring": true,
+  "lastRecurredAt": "2025-09-06T10:00:00Z",
+  "purchasedBy": {
+    "id": "user-uuid",
+    "firstName": "John",
+    "lastName": "Doe"
+  },
+  "category": {
+    "id": "category-uuid",
+    "name": "Groceries"
+  }
+}]
+```
+
+---
+
 ## Health Endpoints
 
 ### ❤️ Health Check
@@ -786,6 +1146,40 @@ Welcome to RoomieSync API! 🏠
   createdAt: Date;      // Creation date
   updatedAt: Date;      // Last update date
   house: House;         // House this category belongs to
+}
+```
+
+### ShoppingList
+```typescript
+{
+  id: string;           // UUID
+  name: string;         // Shopping list name
+  isActive: boolean;    // List status
+  createdAt: Date;      // Creation date
+  updatedAt: Date;      // Last update date
+  items: ShoppingItem[]; // Items in this list
+  primaryForHouse?: House; // If this is primary list for a house
+  house?: House;        // If this is secondary list for a house
+}
+```
+
+### ShoppingItem
+```typescript
+{
+  id: string;           // UUID
+  name: string;         // Item name
+  quantity: number;     // How many (default: 1)
+  notes?: string;       // Optional notes
+  purchasedAt?: Date;   // When purchased (null = not purchased)
+  isRecurring: boolean; // Whether item recurs automatically
+  recurringInterval?: number; // Days until recurring (required if isRecurring)
+  lastRecurredAt?: Date; // When this item last generated a new recurring item
+  createdAt: Date;      // Creation date
+  updatedAt: Date;      // Last update date
+  shoppingList: ShoppingList; // Which list this belongs to
+  category?: Category;  // Optional category
+  assignedTo?: User;    // Optional user assignment
+  purchasedBy?: User;   // Who purchased this item
 }
 ```
 
@@ -1022,8 +1416,113 @@ USER2=$(curl -s -X POST http://localhost:3001/auth/register \
 TOKEN2=$(echo $USER2 | jq -r '.access_token')
 USER2_ID=$(echo $USER2 | jq -r '.user.id')
 
-# 4. Create an expense (you'll need a category ID - check database or create one first)
-# For testing, you can create a default category first
+# 4. Test Shopping List functionality
+# Add a recurring item (will trigger duplicate detection when added again)
+curl -X POST http://localhost:3001/houses/$HOUSE_ID/shopping-list/items \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN1" \
+  -d '{
+    "name": "Milk",
+    "quantity": 2,
+    "isRecurring": true,
+    "recurringInterval": 7
+  }'
+
+# Purchase the item
+ITEM_ID="<item-id-from-response>"
+curl -X POST http://localhost:3001/houses/$HOUSE_ID/shopping-list/items/$ITEM_ID/purchase \
+  -H "Authorization: Bearer $TOKEN1"
+
+# Try to add the same item again (should trigger 409 Conflict)
+curl -X POST http://localhost:3001/houses/$HOUSE_ID/shopping-list/items \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN1" \
+  -d '{
+    "name": "Milk",
+    "quantity": 2
+  }'
+
+# Force add despite the conflict
+curl -X POST http://localhost:3001/houses/$HOUSE_ID/shopping-list/items \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN1" \
+  -d '{
+    "name": "Milk",
+    "quantity": 2,
+    "force": true
+  }'
+```
+
+#### Shopping List Testing
+
+**Add a shopping item:**
+```bash
+curl -X POST http://localhost:3001/houses/HOUSE_ID/shopping-list/items \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer TOKEN" \
+  -d '{
+    "name": "Bread",
+    "quantity": 1,
+    "notes": "Whole wheat"
+  }'
+```
+
+**Test duplicate detection (add similar item):**
+```bash
+# First, add and purchase a recurring item
+curl -X POST http://localhost:3001/houses/HOUSE_ID/shopping-list/items \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer TOKEN" \
+  -d '{
+    "name": "Milk",
+    "isRecurring": true,
+    "recurringInterval": 7
+  }'
+
+# Purchase it (replace ITEM_ID)
+curl -X POST http://localhost:3001/houses/HOUSE_ID/shopping-list/items/ITEM_ID/purchase \
+  -H "Authorization: Bearer TOKEN"
+
+# Try to add "Milk" again - this will return 409 Conflict
+curl -X POST http://localhost:3001/houses/HOUSE_ID/shopping-list/items \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer TOKEN" \
+  -d '{
+    "name": "Milk",
+    "quantity": 2
+  }'
+
+# Force add despite conflict
+curl -X POST http://localhost:3001/houses/HOUSE_ID/shopping-list/items \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer TOKEN" \
+  -d '{
+    "name": "Milk",
+    "quantity": 2,
+    "force": true
+  }'
+```
+
+**Get shopping list items:**
+```bash
+curl -X GET http://localhost:3001/houses/HOUSE_ID/shopping-list/items \
+  -H "Authorization: Bearer TOKEN"
+```
+
+**Purchase multiple items at once:**
+```bash
+curl -X POST http://localhost:3001/houses/HOUSE_ID/shopping-list/items/batch-purchase \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer TOKEN" \
+  -d '{
+    "itemIds": ["ITEM_ID_1", "ITEM_ID_2"]
+  }'
+```
+
+**Get purchase history:**
+```bash
+curl -X GET http://localhost:3001/houses/HOUSE_ID/shopping-list/history \
+  -H "Authorization: Bearer TOKEN"
 ```
 
 ### Using the Swagger UI
