@@ -5,3 +5,5 @@ export { Expense } from './expense.entity';
 export { Payment } from './payment.entity';
 export { Balance } from './balance.entity';
 export { Category } from './category.entity';
+export { ShoppingList } from './shopping-list.entity';
+export { ShoppingItem } from './shopping-item.entity';

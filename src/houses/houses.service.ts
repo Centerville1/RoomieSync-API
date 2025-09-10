@@ -4,6 +4,7 @@ import { Repository, QueryFailedError } from 'typeorm';
 import { House } from '../entities/house.entity';
 import { HouseMembership } from '../entities/house-membership.entity';
 import { User } from '../entities/user.entity';
+import { ShoppingList } from '../entities/shopping-list.entity';
 import { CreateHouseDto } from './dto/create-house.dto';
 import { JoinHouseDto } from './dto/join-house.dto';
 import { UpdateHouseDto } from './dto/update-house.dto';
@@ -18,6 +19,8 @@ export class HousesService {
     private houseMembershipsRepository: Repository<HouseMembership>,
     @InjectRepository(User)
     private usersRepository: Repository<User>,
+    @InjectRepository(ShoppingList)
+    private shoppingListRepository: Repository<ShoppingList>,
   ) {}
 
   private generateInviteCode(): string {
@@ -56,6 +59,17 @@ export class HousesService {
         });
 
         const savedMembership = await this.houseMembershipsRepository.save(membership);
+
+        // Create primary shopping list for the house
+        const primaryShoppingList = this.shoppingListRepository.create({
+          name: 'Shopping List',
+          houseId: savedHouse.id
+        });
+        const savedShoppingList = await this.shoppingListRepository.save(primaryShoppingList);
+
+        // Link the primary shopping list to the house
+        savedHouse.primaryShoppingListId = savedShoppingList.id;
+        await this.housesRepository.save(savedHouse);
 
         return {
           ...savedHouse,
