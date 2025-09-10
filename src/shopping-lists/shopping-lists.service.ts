@@ -366,7 +366,7 @@ export class ShoppingListsService {
       .where('item.shoppingListId = :listId', { listId: shoppingList.id })
       .andWhere('item.isRecurring = :isRecurring', { isRecurring: true })
       .andWhere('item.purchasedAt IS NOT NULL')
-      .andWhere('item.purchasedAt > NOW() - INTERVAL 14 DAY') // Last 14 days
+      .andWhere('item.purchasedAt > NOW() - INTERVAL \'14 days\'') // Last 14 days
       .getMany();
 
     const normalizedNewName = this.normalizeItemName(newItemName);
