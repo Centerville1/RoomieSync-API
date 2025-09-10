@@ -8,6 +8,7 @@ import { AuthService } from './auth.service';
 import { User, House, HouseMembership } from '../entities';
 import { LocalStrategy } from './strategies/local.strategy';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { UploadModule } from '../upload/upload.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { JwtStrategy } from './strategies/jwt.strategy';
         };
       },
     }),
+    UploadModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, LocalStrategy, JwtStrategy],
