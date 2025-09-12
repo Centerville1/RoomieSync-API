@@ -149,6 +149,12 @@ export class AuthController {
         email: "john@example.com",
         firstName: "John",
         lastName: "Doe",
+        phoneNumber: "+1234567890",
+        profileImageUrl: "https://example.com/profile.jpg",
+        color: "#6366F1",
+        isActive: true,
+        createdAt: "2025-09-06T12:00:00Z",
+        updatedAt: "2025-09-06T12:00:00Z",
       },
     },
   })
@@ -163,7 +169,7 @@ export class AuthController {
     },
   })
   getProfile(@Request() req) {
-    return req.user;
+    return this.authService.getProfile(req.user.id);
   }
 
   @UseGuards(JwtAuthGuard)

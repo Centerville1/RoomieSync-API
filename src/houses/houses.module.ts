@@ -7,11 +7,13 @@ import { HouseMembership } from "../entities/house-membership.entity";
 import { User } from "../entities/user.entity";
 import { ShoppingList } from "../entities/shopping-list.entity";
 import { UploadModule } from "../upload/upload.module";
+import { CategoriesModule } from "../categories/categories.module";
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([House, HouseMembership, User, ShoppingList]),
     UploadModule,
+    CategoriesModule,
   ],
   controllers: [HousesController],
   providers: [HousesService],

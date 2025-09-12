@@ -10,6 +10,7 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Delete,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import {
@@ -29,6 +30,7 @@ import { HousesService } from "./houses.service";
 import { CreateHouseDto } from "./dto/create-house.dto";
 import { JoinHouseDto } from "./dto/join-house.dto";
 import { UpdateHouseDto } from "./dto/update-house.dto";
+import { UpdateMemberRoleDto } from "./dto/update-member-role.dto";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { UploadService } from "../upload/upload.service";
 
@@ -123,7 +125,7 @@ export class HousesController {
         description: "A cozy house",
         inviteCode: "HOUSE123",
         createdAt: "2025-09-06T12:00:00Z",
-        userMembership: {
+        membership: {
           id: "uuid",
           displayName: "Johnny",
           role: "member",
@@ -189,6 +191,8 @@ export class HousesController {
           address: "123 Main St",
           description: "A cozy house",
           inviteCode: "HOUSE123",
+          imageUrl: "https://example.com/house.jpg",
+          color: "#10B981",
           createdAt: "2025-09-06T12:00:00Z",
           membership: {
             id: "uuid",
@@ -196,6 +200,32 @@ export class HousesController {
             role: "admin",
             joinedAt: "2025-09-06T12:00:00Z",
           },
+          members: [
+            {
+              id: "uuid",
+              displayName: "Johnny",
+              role: "admin",
+              joinedAt: "2025-09-06T12:00:00Z",
+              user: {
+                id: "uuid",
+                firstName: "John",
+                lastName: "Doe",
+                email: "john@example.com",
+              },
+            },
+            {
+              id: "uuid2",
+              displayName: "Sarah",
+              role: "member",
+              joinedAt: "2025-09-07T10:00:00Z",
+              user: {
+                id: "uuid2",
+                firstName: "Sarah",
+                lastName: "Smith",
+                email: "sarah@example.com",
+              },
+            },
+          ],
         },
       ],
     },
@@ -228,8 +258,10 @@ export class HousesController {
         address: "123 Main St",
         description: "A cozy house",
         inviteCode: "HOUSE123",
+        imageUrl: "https://example.com/house.jpg",
+        color: "#10B981",
         createdAt: "2025-09-06T12:00:00Z",
-        userMembership: {
+        membership: {
           id: "uuid",
           displayName: "Johnny",
           role: "admin",
@@ -411,5 +443,124 @@ export class HousesController {
 
     // Update house image URL (this automatically checks admin permissions)
     return this.housesService.updateHouse(houseId, req.user.id, { imageUrl });
+  }
+
+  @Delete(":id/leave")
+  @ApiOperation({
+    summary: "Leave a house",
+    description:
+      "Leave a house. If you are the last member, the house will be deleted. If you are the only admin with other members present, you must promote another member to admin first.",
+  })
+  @ApiParam({
+    name: "id",
+    description: "House UUID",
+    example: "uuid",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Successfully left the house",
+    schema: {
+      example: {
+        message: "Successfully left the house",
+        houseDeleted: false,
+      },
+    },
+  })
+  @ApiResponse({
+    status: 200,
+    description: "House deleted (last member scenario)",
+    schema: {
+      example: {
+        message: "House deleted successfully as you were the last member",
+        houseDeleted: true,
+      },
+    },
+  })
+  @ApiConflictResponse({
+    description: "Cannot leave as only admin with other members present",
+    schema: {
+      example: {
+        statusCode: 409,
+        message: "Cannot leave house as the only admin. Promote another member to admin first or delete the house.",
+        error: "Conflict",
+      },
+    },
+  })
+  @ApiNotFoundResponse({
+    description: "House not found or user is not a member",
+  })
+  @ApiUnauthorizedResponse({
+    description: "Invalid or missing JWT token",
+  })
+  async leaveHouse(@Param("id") houseId: string, @Request() req) {
+    return this.housesService.leaveHouse(houseId, req.user.id);
+  }
+
+  @Patch(":id/members/:membershipId/role")
+  @ApiOperation({
+    summary: "Update member role",
+    description:
+      "Change a member's role between admin and member. Only admins can change roles. An admin cannot demote themselves if they are the only admin.",
+  })
+  @ApiParam({
+    name: "id",
+    description: "House UUID",
+    example: "uuid",
+  })
+  @ApiParam({
+    name: "membershipId", 
+    description: "Member's membership UUID",
+    example: "uuid",
+  })
+  @ApiBody({ type: UpdateMemberRoleDto })
+  @ApiResponse({
+    status: 200,
+    description: "Member role updated successfully",
+    schema: {
+      example: {
+        id: "uuid",
+        displayName: "Johnny",
+        role: "admin",
+        joinedAt: "2025-09-06T12:00:00Z",
+        user: {
+          id: "uuid",
+          firstName: "John",
+          lastName: "Doe",
+          email: "john@example.com",
+        },
+      },
+    },
+  })
+  @ApiBadRequestResponse({
+    description: "Invalid role specified",
+  })
+  @ApiConflictResponse({
+    description: "Cannot perform role change (e.g., only admin demoting self)",
+    schema: {
+      example: {
+        statusCode: 409,
+        message: "Cannot demote yourself as the only admin",
+        error: "Conflict",
+      },
+    },
+  })
+  @ApiNotFoundResponse({
+    description: "House not found, user is not a member/admin, or target member not found",
+  })
+  @ApiUnauthorizedResponse({
+    description: "Invalid or missing JWT token",
+  })
+  async updateMemberRole(
+    @Param("id") houseId: string,
+    @Param("membershipId") membershipId: string,
+    @Body() updateMemberRoleDto: UpdateMemberRoleDto,
+    @Request() req
+  ) {
+    return this.housesService.updateMemberRole(
+      houseId,
+      req.user.id,
+      membershipId,
+      updateMemberRoleDto.role
+    );
   }
 }

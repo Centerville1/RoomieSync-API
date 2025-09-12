@@ -1,5 +1,5 @@
-import { Injectable, BadRequestException } from '@nestjs/common';
-import { v2 as cloudinary } from 'cloudinary';
+import { Injectable, BadRequestException } from "@nestjs/common";
+import { v2 as cloudinary } from "cloudinary";
 
 @Injectable()
 export class UploadService {
@@ -13,24 +13,24 @@ export class UploadService {
   }
 
   async uploadImage(
-    file: Express.Multer.File, 
+    file: Express.Multer.File,
     folder: string,
-    transformation?: any
+    transformation?: unknown
   ): Promise<string> {
     try {
       // Convert buffer to base64 for Cloudinary upload
-      const base64File = `data:${file.mimetype};base64,${file.buffer.toString('base64')}`;
-      
+      const base64File = `data:${file.mimetype};base64,${file.buffer.toString("base64")}`;
+
       // Upload to Cloudinary with options
       const result = await cloudinary.uploader.upload(base64File, {
         folder: `roomiesync/${folder}`, // Organize images in folders
-        resource_type: 'image',
-        quality: 'auto', // Automatic quality optimization
-        fetch_format: 'auto', // Automatic format optimization (WebP, etc.)
+        resource_type: "image",
+        quality: "auto", // Automatic quality optimization
+        fetch_format: "auto", // Automatic format optimization (WebP, etc.)
         transformation: transformation || [
-          { width: 500, height: 500, crop: 'limit' }, // Max dimensions
-          { quality: 'auto' }
-        ]
+          { width: 500, height: 500, crop: "limit" }, // Max dimensions
+          { quality: "auto" },
+        ],
       });
 
       return result.secure_url;
@@ -51,6 +51,6 @@ export class UploadService {
   // Extract public ID from Cloudinary URL for deletion
   extractPublicId(url: string): string {
     const matches = url.match(/\/upload\/(?:v\d+\/)?(.+)\.[^.]+$/);
-    return matches ? matches[1] : '';
+    return matches ? matches[1] : "";
   }
 }

@@ -9,6 +9,7 @@ import { CreateHouseDto } from './dto/create-house.dto';
 import { JoinHouseDto } from './dto/join-house.dto';
 import { UpdateHouseDto } from './dto/update-house.dto';
 import { MemberRole } from '../entities/house-membership.entity';
+import { CategoriesService } from '../categories/categories.service';
 
 @Injectable()
 export class HousesService {
@@ -21,6 +22,7 @@ export class HousesService {
     private usersRepository: Repository<User>,
     @InjectRepository(ShoppingList)
     private shoppingListRepository: Repository<ShoppingList>,
+    private categoriesService: CategoriesService,
   ) {}
 
   private generateInviteCode(): string {
@@ -70,6 +72,9 @@ export class HousesService {
         // Link the primary shopping list to the house
         savedHouse.primaryShoppingListId = savedShoppingList.id;
         await this.housesRepository.save(savedHouse);
+
+        // Create default categories for the house
+        await this.categoriesService.createDefaultCategories(savedHouse.id);
 
         return {
           ...savedHouse,
@@ -148,7 +153,7 @@ export class HousesService {
   async getUserHouses(userId: string) {
     const memberships = await this.houseMembershipsRepository.find({
       where: { userId, isActive: true },
-      relations: ['house'],
+      relations: ['house', 'house.memberships', 'house.memberships.user'],
       order: { joinedAt: 'DESC' }
     });
 
@@ -158,13 +163,29 @@ export class HousesService {
       address: membership.house.address,
       description: membership.house.description,
       inviteCode: membership.house.inviteCode,
+      imageUrl: membership.house.imageUrl,
+      color: membership.house.color,
       createdAt: membership.house.createdAt,
       membership: {
         id: membership.id,
         displayName: membership.displayName,
         role: membership.role,
         joinedAt: membership.joinedAt
-      }
+      },
+      members: membership.house.memberships
+        .filter(m => m.isActive)
+        .map(m => ({
+          id: m.id,
+          displayName: m.displayName,
+          role: m.role,
+          joinedAt: m.joinedAt,
+          user: {
+            id: m.user.id,
+            firstName: m.user.firstName,
+            lastName: m.user.lastName,
+            email: m.user.email
+          }
+        }))
     }));
   }
 
@@ -189,8 +210,10 @@ export class HousesService {
       address: house.address,
       description: house.description,
       inviteCode: house.inviteCode,
+      imageUrl: house.imageUrl,
+      color: house.color,
       createdAt: house.createdAt,
-      userMembership: {
+      membership: {
         id: userMembership.id,
         displayName: userMembership.displayName,
         role: userMembership.role,
@@ -254,6 +277,105 @@ export class HousesService {
       color: updatedHouse.color,
       createdAt: updatedHouse.createdAt,
       updatedAt: updatedHouse.updatedAt
+    };
+  }
+
+  async leaveHouse(houseId: string, userId: string) {
+    // Verify user is a member
+    const userMembership = await this.houseMembershipsRepository.findOne({
+      where: { userId, houseId, isActive: true }
+    });
+
+    if (!userMembership) {
+      throw new NotFoundException('House not found or you are not a member');
+    }
+
+    // Get all active memberships for this house
+    const allMemberships = await this.houseMembershipsRepository.find({
+      where: { houseId, isActive: true }
+    });
+
+    // Check if user is an admin
+    const isUserAdmin = userMembership.role === MemberRole.ADMIN;
+    
+    // Count how many admins are in the house
+    const adminCount = allMemberships.filter(m => m.role === MemberRole.ADMIN).length;
+
+    // If this is the only admin and there are other members, prevent leaving
+    if (isUserAdmin && adminCount === 1 && allMemberships.length > 1) {
+      throw new ConflictException('Cannot leave house as the only admin. Promote another member to admin first or delete the house.');
+    }
+
+    // If this is the last member in the house, delete the house
+    if (allMemberships.length === 1) {
+      await this.housesRepository.update(houseId, { isActive: false });
+      await this.houseMembershipsRepository.update(userMembership.id, { isActive: false });
+      
+      return { 
+        message: 'House deleted successfully as you were the last member',
+        houseDeleted: true 
+      };
+    }
+
+    // Otherwise, just remove the user's membership
+    await this.houseMembershipsRepository.update(userMembership.id, { isActive: false });
+    
+    return { 
+      message: 'Successfully left the house',
+      houseDeleted: false 
+    };
+  }
+
+  async updateMemberRole(houseId: string, adminUserId: string, membershipId: string, newRole: MemberRole) {
+    // Verify admin user is an admin of the house
+    const adminMembership = await this.houseMembershipsRepository.findOne({
+      where: { userId: adminUserId, houseId, isActive: true }
+    });
+
+    if (!adminMembership) {
+      throw new NotFoundException('House not found or you are not a member');
+    }
+
+    if (adminMembership.role !== MemberRole.ADMIN) {
+      throw new ConflictException('Only admins can change member roles');
+    }
+
+    // Find the target membership
+    const targetMembership = await this.houseMembershipsRepository.findOne({
+      where: { id: membershipId, houseId, isActive: true },
+      relations: ['user']
+    });
+
+    if (!targetMembership) {
+      throw new NotFoundException('Member not found in this house');
+    }
+
+    // Prevent admin from demoting themselves if they're the only admin
+    if (targetMembership.userId === adminUserId && newRole === MemberRole.MEMBER) {
+      const adminCount = await this.houseMembershipsRepository.count({
+        where: { houseId, role: MemberRole.ADMIN, isActive: true }
+      });
+
+      if (adminCount === 1) {
+        throw new ConflictException('Cannot demote yourself as the only admin');
+      }
+    }
+
+    // Update the role
+    targetMembership.role = newRole;
+    await this.houseMembershipsRepository.save(targetMembership);
+
+    return {
+      id: targetMembership.id,
+      displayName: targetMembership.displayName,
+      role: targetMembership.role,
+      joinedAt: targetMembership.joinedAt,
+      user: {
+        id: targetMembership.user.id,
+        firstName: targetMembership.user.firstName,
+        lastName: targetMembership.user.lastName,
+        email: targetMembership.user.email
+      }
     };
   }
 }
