@@ -126,6 +126,20 @@ export class AuthService {
     return this.login(savedUser);
   }
 
+  async getProfile(userId: string) {
+    const user = await this.usersRepository.findOne({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    // Return user without password
+    const { password, ...result } = user;
+    return result;
+  }
+
   async updateProfile(userId: string, updateProfileDto: UpdateProfileDto) {
     const user = await this.usersRepository.findOne({
       where: { id: userId }

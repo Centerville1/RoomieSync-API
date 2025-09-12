@@ -29,6 +29,8 @@ http://localhost:3001
 | **Houses**         | GET    | `/houses/{id}`                                            | Get house details                        |
 | **Houses**         | PATCH  | `/houses/{id}`                                            | Update house details                     |
 | **Houses**         | POST   | `/houses/{id}/upload-image`                               | Upload house image                       |
+| **Houses**         | DELETE | `/houses/{id}/leave`                                      | Leave house                              |
+| **Houses**         | PATCH  | `/houses/{id}/members/{membershipId}/role`                | Update member role                       |
 | **Expenses**       | POST   | `/houses/{houseId}/expenses`                              | Create expense                           |
 | **Expenses**       | GET    | `/houses/{houseId}/expenses`                              | Get house expenses                       |
 | **Expenses**       | GET    | `/houses/{houseId}/expenses/{expenseId}`                  | Get expense details                      |
@@ -357,7 +359,7 @@ Join an existing house using its invite code.
   "description": "A cozy house",
   "inviteCode": "HOUSE123",
   "createdAt": "2025-09-06T12:00:00Z",
-  "userMembership": {
+  "membership": {
     "id": "uuid",
     "displayName": "Johnny",
     "role": "member",
@@ -386,7 +388,7 @@ Join an existing house using its invite code.
 
 **Headers:** `Authorization: Bearer <token>`
 
-Get all houses the authenticated user belongs to.
+Get all houses the authenticated user belongs to, including complete member lists.
 
 **Responses:**
 
@@ -402,13 +404,41 @@ Get all houses the authenticated user belongs to.
     "address": "123 Main St",
     "description": "A cozy house",
     "inviteCode": "HOUSE123",
+    "imageUrl": "https://example.com/house.jpg",
+    "color": "#10B981",
     "createdAt": "2025-09-06T12:00:00Z",
     "membership": {
       "id": "uuid",
       "displayName": "Johnny",
       "role": "admin",
       "joinedAt": "2025-09-06T12:00:00Z"
-    }
+    },
+    "members": [
+      {
+        "id": "uuid",
+        "displayName": "Johnny",
+        "role": "admin",
+        "joinedAt": "2025-09-06T12:00:00Z",
+        "user": {
+          "id": "uuid",
+          "firstName": "John",
+          "lastName": "Doe",
+          "email": "john@example.com"
+        }
+      },
+      {
+        "id": "uuid2",
+        "displayName": "Sarah",
+        "role": "member",
+        "joinedAt": "2025-09-07T10:00:00Z",
+        "user": {
+          "id": "uuid2",
+          "firstName": "Sarah",
+          "lastName": "Smith",
+          "email": "sarah@example.com"
+        }
+      }
+    ]
   }
 ]
 ```
@@ -440,7 +470,7 @@ Get detailed information about a specific house including all members.
   "description": "A cozy house",
   "inviteCode": "HOUSE123",
   "createdAt": "2025-09-06T12:00:00Z",
-  "userMembership": {
+  "membership": {
     "id": "uuid",
     "displayName": "Johnny",
     "role": "admin",
@@ -552,6 +582,105 @@ Upload a house image and automatically update the house's imageUrl. Only house a
   "color": "#10B981",
   "createdAt": "2025-09-06T12:00:00Z",
   "updatedAt": "2025-09-07T14:00:00Z"
+}
+```
+
+### 🚪 Leave House
+
+**DELETE** `/houses/{id}/leave`
+
+**Headers:** `Authorization: Bearer <token>`
+
+Leave a house. If you are the last member, the house will be deleted. If you are the only admin with other members present, you must promote another member to admin first.
+
+**Parameters:**
+
+- `id` (path): House UUID
+
+**Responses:**
+
+- **200 OK**: Successfully left the house
+- **409 Conflict**: Cannot leave as only admin with other members present
+- **404 Not Found**: House not found or user is not a member
+
+**Success Responses:**
+
+**Normal leave:**
+```json
+{
+  "message": "Successfully left the house",
+  "houseDeleted": false
+}
+```
+
+**Last member (house deleted):**
+```json
+{
+  "message": "House deleted successfully as you were the last member",
+  "houseDeleted": true
+}
+```
+
+**Error Response:**
+```json
+{
+  "statusCode": 409,
+  "message": "Cannot leave house as the only admin. Promote another member to admin first or delete the house.",
+  "error": "Conflict"
+}
+```
+
+### 👑 Update Member Role
+
+**PATCH** `/houses/{id}/members/{membershipId}/role`
+
+**Headers:** `Authorization: Bearer <token>`
+
+Change a member's role between admin and member. Only admins can change roles. An admin cannot demote themselves if they are the only admin.
+
+**Parameters:**
+
+- `id` (path): House UUID
+- `membershipId` (path): Member's membership UUID
+
+**Request Body:**
+
+```json
+{
+  "role": "admin"  // or "member"
+}
+```
+
+**Responses:**
+
+- **200 OK**: Member role updated successfully
+- **400 Bad Request**: Invalid role specified
+- **409 Conflict**: Cannot perform role change (e.g., only admin demoting self)
+- **404 Not Found**: House not found, user is not a member/admin, or target member not found
+
+**Success Response:**
+
+```json
+{
+  "id": "uuid",
+  "displayName": "Johnny",
+  "role": "admin",
+  "joinedAt": "2025-09-06T12:00:00Z",
+  "user": {
+    "id": "uuid",
+    "firstName": "John",
+    "lastName": "Doe",
+    "email": "john@example.com"
+  }
+}
+```
+
+**Error Response:**
+```json
+{
+  "statusCode": 409,
+  "message": "Cannot demote yourself as the only admin",
+  "error": "Conflict"
 }
 ```
 
