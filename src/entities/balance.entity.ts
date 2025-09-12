@@ -12,13 +12,12 @@ import { User } from './user.entity';
 import { House } from './house.entity';
 
 @Entity('balances')
-@Unique(['houseId', 'fromUserId', 'toUserId'])
+@Unique(['houseId', 'user1Id', 'user2Id'])
 export class Balance {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  // Positive amount means fromUser owes toUser money
-  // Negative amount means toUser owes fromUser money
+  // Joint balance between two users - positive means user1 owes user2
   @Column('decimal', { precision: 10, scale: 2, default: 0 })
   amount: number;
 
@@ -28,20 +27,20 @@ export class Balance {
   @UpdateDateColumn()
   updatedAt: Date;
 
-  // Relationships
+  // Store users as user1 and user2 (user1 has lower UUID for consistency)
   @ManyToOne(() => User, { eager: true })
   @JoinColumn()
-  fromUser: User;
+  user1: User;
 
   @Column()
-  fromUserId: string;
+  user1Id: string;
 
   @ManyToOne(() => User, { eager: true })
   @JoinColumn()
-  toUser: User;
+  user2: User;
 
   @Column()
-  toUserId: string;
+  user2Id: string;
 
   @ManyToOne(() => House)
   @JoinColumn()
@@ -50,13 +49,17 @@ export class Balance {
   @Column()
   houseId: string;
 
-  // Helper methods
-  get isOwed(): boolean {
-    return Number(this.amount) > 0;
-  }
+  // Helper method to get who owes whom
+  getDebtInfo(): { debtor: User; creditor: User; amount: number } | null {
+    const absoluteAmount = Math.abs(Number(this.amount));
+    if (absoluteAmount < 0.01) return null;
 
-  get isOwing(): boolean {
-    return Number(this.amount) < 0;
+    const amount = Number(this.amount);
+    return {
+      debtor: amount > 0 ? this.user1 : this.user2,
+      creditor: amount > 0 ? this.user2 : this.user1,
+      amount: absoluteAmount
+    };
   }
 
   get absoluteAmount(): number {

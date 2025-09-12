@@ -112,45 +112,37 @@ export class PaymentsService {
     houseId: string,
     amount: number,
   ) {
-    // Find existing balance between these users in this house
+    // Ensure consistent ordering: user1 has smaller UUID
+    const [user1Id, user2Id] = fromUserId < toUserId ? [fromUserId, toUserId] : [toUserId, fromUserId];
+    
     let balance = await this.balancesRepository.findOne({
-      where: [
-        { fromUserId, toUserId, houseId },
-        { fromUserId: toUserId, toUserId: fromUserId, houseId },
-      ],
+      where: { user1Id, user2Id, houseId }
     });
 
-    if (!balance) {
-      // Create new balance if none exists
-      balance = this.balancesRepository.create({
-        fromUserId: toUserId, // Payment reduces what fromUser owes to toUser
-        toUserId: fromUserId,
-        houseId,
-        amount: -amount, // Negative amount means toUser now owes fromUser
-      });
-    } else {
-      // Update existing balance
-      if (balance.fromUserId === fromUserId && balance.toUserId === toUserId) {
-        // fromUser owes toUser, payment reduces this debt
-        balance.amount -= amount;
+    if (balance) {
+      // Update existing joint balance
+      if (fromUserId === user1Id) {
+        // user1 is paying user2, so user1 owes less (subtract from balance)
+        balance.amount = Number(balance.amount) - amount;
       } else {
-        // toUser owes fromUser, payment increases this debt
-        balance.amount += amount;
+        // user2 is paying user1, so user1 is owed less (add to balance)
+        balance.amount = Number(balance.amount) + amount;
       }
 
-      // If balance becomes negative, flip the relationship
-      if (balance.amount < 0) {
-        const tempUserId = balance.fromUserId;
-        balance.fromUserId = balance.toUserId;
-        balance.toUserId = tempUserId;
-        balance.amount = Math.abs(balance.amount);
-      }
-
-      // If balance is zero, delete it
-      if (balance.amount === 0) {
+      // If balance is effectively zero, delete it
+      if (Math.abs(balance.amount) < 0.01) {
         await this.balancesRepository.remove(balance);
         return;
       }
+    } else {
+      // Create new balance - payment creates a debt in the opposite direction
+      const balanceAmount = fromUserId === user1Id ? -amount : amount;
+      balance = this.balancesRepository.create({
+        user1Id,
+        user2Id,
+        houseId,
+        amount: balanceAmount
+      });
     }
 
     await this.balancesRepository.save(balance);

@@ -139,7 +139,7 @@ export class BalancesController {
   @ApiParam({ name: 'houseId', description: 'House UUID' })
   @ApiResponse({
     status: 200,
-    description: 'List of current balances',
+    description: 'List of current balances between all house members',
     schema: {
       example: [{
         id: 'balance-uuid',
@@ -168,5 +168,50 @@ export class BalancesController {
   })
   async getHouseBalances(@Param('houseId') houseId: string, @Request() req) {
     return this.expensesService.getHouseBalances(req.user.id, houseId);
+  }
+
+  @Get('user')
+  @ApiOperation({
+    summary: 'Get user balances in house',
+    description: 'Get IOU balances for the requesting user in a specific house'
+  })
+  @ApiParam({ name: 'houseId', description: 'House UUID' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of current balances involving the requesting user',
+    schema: {
+      example: [{
+        id: 'balance-uuid',
+        amount: 62.75,
+        type: 'owes',
+        updatedAt: '2025-09-06T12:00:00Z',
+        otherUser: {
+          id: 'user-uuid-2',
+          firstName: 'John',
+          lastName: 'Doe',
+          email: 'john@example.com'
+        }
+      }, {
+        id: 'balance-uuid-2',
+        amount: 25.30,
+        type: 'owed_by',
+        updatedAt: '2025-09-06T12:00:00Z',
+        otherUser: {
+          id: 'user-uuid-3',
+          firstName: 'Sarah',
+          lastName: 'Wilson',
+          email: 'sarah@example.com'
+        }
+      }]
+    }
+  })
+  @ApiNotFoundResponse({
+    description: 'House not found or user is not a member'
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or missing JWT token'
+  })
+  async getUserBalances(@Param('houseId') houseId: string, @Request() req) {
+    return this.expensesService.getUserBalances(req.user.id, houseId);
   }
 }

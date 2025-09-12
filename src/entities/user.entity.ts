@@ -59,11 +59,11 @@ export class User {
   @OneToMany(() => Payment, (payment) => payment.toUser)
   paymentsReceived: Payment[];
 
-  @OneToMany(() => Balance, (balance) => balance.fromUser)
-  balancesOwed: Balance[];
+  @OneToMany(() => Balance, (balance) => balance.user1)
+  balancesAsUser1: Balance[];
 
-  @OneToMany(() => Balance, (balance) => balance.toUser)
-  balancesOwing: Balance[];
+  @OneToMany(() => Balance, (balance) => balance.user2)
+  balancesAsUser2: Balance[];
 
   // Helper method to get full name
   get fullName(): string {
