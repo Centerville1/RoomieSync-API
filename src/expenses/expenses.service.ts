@@ -85,18 +85,30 @@ export class ExpensesService {
   }
 
   private async updateBalance(fromUserId: string, toUserId: string, houseId: string, amount: number) {
+    // Ensure consistent ordering: user1 has smaller UUID
+    const [user1Id, user2Id] = fromUserId < toUserId ? [fromUserId, toUserId] : [toUserId, fromUserId];
+    
     let balance = await this.balancesRepository.findOne({
-      where: { fromUserId, toUserId, houseId }
+      where: { user1Id, user2Id, houseId }
     });
 
     if (balance) {
-      balance.amount = Number(balance.amount) + amount;
+      // Update existing balance
+      if (fromUserId === user1Id) {
+        // user1 owes user2 more
+        balance.amount = Number(balance.amount) + amount;
+      } else {
+        // user2 owes user1, so subtract from the balance
+        balance.amount = Number(balance.amount) - amount;
+      }
     } else {
+      // Create new balance
+      const balanceAmount = fromUserId === user1Id ? amount : -amount;
       balance = this.balancesRepository.create({
-        fromUserId,
-        toUserId,
+        user1Id,
+        user2Id,
         houseId,
-        amount
+        amount: balanceAmount
       });
     }
 
@@ -144,22 +156,63 @@ export class ExpensesService {
 
     const balances = await this.balancesRepository.find({
       where: { houseId },
-      relations: ['fromUser', 'toUser'],
+      relations: ['user1', 'user2'],
       select: {
-        fromUser: { id: true, firstName: true, lastName: true, email: true },
-        toUser: { id: true, firstName: true, lastName: true, email: true }
+        user1: { id: true, firstName: true, lastName: true, email: true },
+        user2: { id: true, firstName: true, lastName: true, email: true }
       }
     });
 
     // Filter out zero balances and format response
     return balances
-      .filter(balance => Number(balance.amount) > 0.01)
-      .map(balance => ({
-        id: balance.id,
-        amount: Number(balance.amount),
-        fromUser: balance.fromUser,
-        toUser: balance.toUser,
-        updatedAt: balance.updatedAt
-      }));
+      .filter(balance => Math.abs(Number(balance.amount)) > 0.01)
+      .map(balance => {
+        const debtInfo = balance.getDebtInfo();
+        if (!debtInfo) return null;
+        
+        return {
+          id: balance.id,
+          amount: debtInfo.amount,
+          fromUser: debtInfo.debtor,
+          toUser: debtInfo.creditor,
+          updatedAt: balance.updatedAt
+        };
+      })
+      .filter(balance => balance !== null);
+  }
+
+  async getUserBalances(userId: string, houseId: string) {
+    await this.verifyHouseMembership(userId, houseId);
+
+    const balances = await this.balancesRepository.find({
+      where: [
+        { houseId, user1Id: userId },
+        { houseId, user2Id: userId }
+      ],
+      relations: ['user1', 'user2'],
+      select: {
+        user1: { id: true, firstName: true, lastName: true, email: true },
+        user2: { id: true, firstName: true, lastName: true, email: true }
+      }
+    });
+
+    return balances
+      .filter(balance => Math.abs(Number(balance.amount)) > 0.01)
+      .map(balance => {
+        const debtInfo = balance.getDebtInfo();
+        if (!debtInfo) return null;
+        
+        const isUserDebtor = debtInfo.debtor.id === userId;
+        const otherUser = isUserDebtor ? debtInfo.creditor : debtInfo.debtor;
+        
+        return {
+          id: balance.id,
+          amount: debtInfo.amount,
+          type: isUserDebtor ? 'owes' : 'owed_by',
+          otherUser,
+          updatedAt: balance.updatedAt
+        };
+      })
+      .filter(balance => balance !== null);
   }
 }

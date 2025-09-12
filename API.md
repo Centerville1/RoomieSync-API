@@ -817,7 +817,7 @@ Get detailed information about a specific expense.
 
 **Headers:** `Authorization: Bearer <token>`
 
-Get current IOU balances between house members.
+Get current joint IOU balances between all house members. Returns consolidated balances showing who owes money to whom.
 
 **Parameters:**
 
@@ -825,7 +825,7 @@ Get current IOU balances between house members.
 
 **Responses:**
 
-- **200 OK**: List of current balances
+- **200 OK**: List of current balances between all house members
 - **404 Not Found**: House not found or user is not a member
 
 **Success Response:**
@@ -851,6 +851,59 @@ Get current IOU balances between house members.
   }
 ]
 ```
+
+### 👤 Get User Balances in House
+
+**GET** `/houses/{houseId}/balances/user`
+
+**Headers:** `Authorization: Bearer <token>`
+
+Get IOU balances for the requesting user in a specific house. Shows both debts owed by the user and debts owed to the user.
+
+**Parameters:**
+
+- `houseId` (path): House UUID
+
+**Responses:**
+
+- **200 OK**: List of current balances involving the requesting user
+- **404 Not Found**: House not found or user is not a member
+
+**Success Response:**
+
+```json
+[
+  {
+    "id": "balance-uuid",
+    "amount": 62.75,
+    "type": "owes",
+    "updatedAt": "2025-09-06T12:00:00Z",
+    "otherUser": {
+      "id": "user-uuid-2",
+      "firstName": "John",
+      "lastName": "Doe",
+      "email": "john@example.com"
+    }
+  },
+  {
+    "id": "balance-uuid-2",
+    "amount": 25.30,
+    "type": "owed_by",
+    "updatedAt": "2025-09-06T12:00:00Z",
+    "otherUser": {
+      "id": "user-uuid-3",
+      "firstName": "Sarah",
+      "lastName": "Wilson",
+      "email": "sarah@example.com"
+    }
+  }
+]
+```
+
+**Response Fields:**
+- `type`: Either "owes" (user owes money to otherUser) or "owed_by" (otherUser owes money to user)
+- `otherUser`: The other party in the balance relationship
+- `amount`: Always positive, representing the absolute amount of the debt
 
 ---
 
