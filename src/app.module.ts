@@ -19,14 +19,22 @@ import { ShoppingListsModule } from './shopping-lists/shopping-lists.module';
     ScheduleModule.forRoot(),
     TypeOrmModule.forRoot({
       type: 'postgres',
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT, 10) || 5433,
-      username: process.env.DB_USERNAME || 'roomiesync',
-      password: process.env.DB_PASSWORD || 'password',
-      database: process.env.DB_NAME || 'roomiesync_db',
+      ...(process.env.DATABASE_URL 
+        ? { url: process.env.DATABASE_URL }
+        : {
+            host: process.env.DB_HOST || 'localhost',
+            port: parseInt(process.env.DB_PORT, 10) || 5433,
+            username: process.env.DB_USERNAME || 'roomiesync',
+            password: process.env.DB_PASSWORD || 'password',
+            database: process.env.DB_NAME || 'roomiesync_db',
+          }
+      ),
       entities: [__dirname + '/**/*.entity{.ts,.js}'],
+      migrations: [__dirname + '/migrations/*{.ts,.js}'],
       synchronize: process.env.NODE_ENV !== 'production',
+      migrationsRun: process.env.NODE_ENV === 'production',
       logging: process.env.NODE_ENV === 'development',
+      ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
     }),
     AuthModule,
     HousesModule,

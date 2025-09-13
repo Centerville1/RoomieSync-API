@@ -69,6 +69,10 @@ A NestJS backend API for managing shared expenses, payments, and multi-house roo
 | `npm run db:reset` | Reset database with fresh data |
 | `npm run db:logs` | View database logs |
 | `npm run db:shell` | Access database shell |
+| `npm run migration:generate <name>` | Generate new migration from entity changes |
+| `npm run migration:run` | Run pending migrations |
+| `npm run migration:revert` | Revert last migration |
+| `npm run migration:show` | Show migration status |
 | `npm run build` | Build production bundle |
 | `npm run lint` | Run ESLint |
 | `npm run test` | Run Jest tests |
@@ -126,6 +130,42 @@ Environment variables are configured in `.env` files. See **[ENVIRONMENT_SETUP.m
 - 📝 **Complete environment variables reference**
 
 **Quick setup:** `cp .env.example .env` then generate a secure JWT secret.
+
+## Database Management
+
+### Migrations
+
+This project uses TypeORM migrations for database schema management in production. 
+
+**Development Environment:**
+- Database tables are automatically created via TypeORM's `synchronize: true` setting
+- No migrations needed for local development
+
+**Production Environment:**
+- Uses proper database migrations for schema changes
+- Migrations run automatically on deployment via `npm run migration:run`
+
+**Migration Commands:**
+```bash
+# Generate a new migration after changing entities
+npm run migration:generate src/migrations/DescriptiveName
+
+# Run pending migrations (done automatically in production)
+npm run migration:run
+
+# Show migration status
+npm run migration:show
+
+# Revert last migration (if needed)
+npm run migration:revert
+```
+
+**Migration Workflow:**
+1. Make changes to your TypeORM entities
+2. Generate migration: `npm run migration:generate src/migrations/YourChangeName`
+3. Review the generated migration file
+4. Test locally with `npm run migration:run`
+5. Deploy to production (migrations run automatically)
 
 ## Database Access
 
