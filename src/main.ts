@@ -1,7 +1,16 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { randomUUID } from 'crypto';
 import { AppModule } from './app.module';
+
+// Ensure crypto.randomUUID is available globally for @nestjs/schedule
+if (!globalThis.crypto) {
+  globalThis.crypto = { randomUUID } as Crypto;
+}
+if (!globalThis.crypto.randomUUID) {
+  globalThis.crypto.randomUUID = randomUUID;
+}
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
