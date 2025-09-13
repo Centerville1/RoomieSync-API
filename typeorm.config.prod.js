@@ -12,8 +12,8 @@ module.exports = new DataSource({
         database: process.env.DB_NAME || 'roomiesync_db',
       }
   ),
-  entities: ['dist/**/*.entity.js'],
-  migrations: ['dist/migrations/*.js'],
+  entities: ['dist/src/**/*.entity.js'],
+  migrations: ['dist/src/migrations/*.js'],
   synchronize: false,
   logging: process.env.NODE_ENV === 'development',
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
