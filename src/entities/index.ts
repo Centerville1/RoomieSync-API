@@ -7,3 +7,4 @@ export { Balance } from './balance.entity';
 export { Category } from './category.entity';
 export { ShoppingList } from './shopping-list.entity';
 export { ShoppingItem } from './shopping-item.entity';
+export { PasswordResetToken } from './password-reset-token.entity';

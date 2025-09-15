@@ -5,14 +5,15 @@ import { PassportModule } from '@nestjs/passport';
 import { ConfigService } from '@nestjs/config';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { User, House, HouseMembership } from '../entities';
+import { User, House, HouseMembership, PasswordResetToken } from '../entities';
 import { LocalStrategy } from './strategies/local.strategy';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { UploadModule } from '../upload/upload.module';
+import { EmailModule } from '../email/email.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([User, House, HouseMembership]),
+    TypeOrmModule.forFeature([User, House, HouseMembership, PasswordResetToken]),
     PassportModule,
     JwtModule.registerAsync({
       inject: [ConfigService],
@@ -25,6 +26,7 @@ import { UploadModule } from '../upload/upload.module';
       },
     }),
     UploadModule,
+    EmailModule,
   ],
   controllers: [AuthController],
   providers: [AuthService, LocalStrategy, JwtStrategy],

@@ -1,23 +1,28 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Between, ArrayContains } from 'typeorm';
 import { Expense } from '../entities/expense.entity';
+import { Payment } from '../entities/payment.entity';
 import { HouseMembership } from '../entities/house-membership.entity';
 import { Category } from '../entities/category.entity';
 import { Balance } from '../entities/balance.entity';
 import { CreateExpenseDto } from './dto/create-expense.dto';
+import { HouseMembersService } from '../common/house-members.service';
 
 @Injectable()
 export class ExpensesService {
   constructor(
     @InjectRepository(Expense)
     private expensesRepository: Repository<Expense>,
+    @InjectRepository(Payment)
+    private paymentsRepository: Repository<Payment>,
     @InjectRepository(HouseMembership)
     private houseMembershipsRepository: Repository<HouseMembership>,
     @InjectRepository(Category)
     private categoriesRepository: Repository<Category>,
     @InjectRepository(Balance)
     private balancesRepository: Repository<Balance>,
+    private houseMembersService: HouseMembersService,
   ) {}
 
   private async verifyHouseMembership(userId: string, houseId: string) {
@@ -31,6 +36,7 @@ export class ExpensesService {
 
     return membership;
   }
+
 
   async createExpense(createExpenseDto: CreateExpenseDto, userId: string, houseId: string) {
     await this.verifyHouseMembership(userId, houseId);
@@ -118,7 +124,10 @@ export class ExpensesService {
   async getHouseExpenses(userId: string, houseId: string) {
     await this.verifyHouseMembership(userId, houseId);
 
-    return await this.expensesRepository.find({
+    // Get house members map for display names and colors
+    const membersMap = await this.houseMembersService.getHouseMembersMap(houseId);
+
+    const expenses = await this.expensesRepository.find({
       where: { houseId },
       relations: ['paidBy', 'category'],
       order: { expenseDate: 'DESC', createdAt: 'DESC' },
@@ -126,6 +135,12 @@ export class ExpensesService {
         paidBy: { id: true, firstName: true, lastName: true, email: true }
       }
     });
+
+    // Add display names and colors to paidBy users
+    return expenses.map(expense => ({
+      ...expense,
+      paidBy: membersMap.get(expense.paidBy.id) || expense.paidBy
+    }));
   }
 
   async getExpenseDetails(expenseId: string, userId: string) {
@@ -184,6 +199,9 @@ export class ExpensesService {
   async getUserBalances(userId: string, houseId: string) {
     await this.verifyHouseMembership(userId, houseId);
 
+    // Get house members map for display names and colors
+    const membersMap = await this.houseMembersService.getHouseMembersMap(houseId);
+
     const balances = await this.balancesRepository.find({
       where: [
         { houseId, user1Id: userId },
@@ -201,18 +219,153 @@ export class ExpensesService {
       .map(balance => {
         const debtInfo = balance.getDebtInfo();
         if (!debtInfo) return null;
-        
+
         const isUserDebtor = debtInfo.debtor.id === userId;
         const otherUser = isUserDebtor ? debtInfo.creditor : debtInfo.debtor;
-        
+
+        // Get the other user with display name and color
+        const otherUserWithDetails = membersMap.get(otherUser.id);
+
         return {
           id: balance.id,
           amount: debtInfo.amount,
           type: isUserDebtor ? 'owes' : 'owed_by',
-          otherUser,
+          otherUser: otherUserWithDetails || otherUser,
           updatedAt: balance.updatedAt
         };
       })
       .filter(balance => balance !== null);
+  }
+
+  async getHouseTransactions(
+    userId: string,
+    houseId: string,
+    userOnly: boolean = false,
+    startDate?: string,
+    endDate?: string,
+    type?: 'expense' | 'payment'
+  ) {
+    await this.verifyHouseMembership(userId, houseId);
+
+    // Get all house members with display names for efficient lookup
+    const membersMap = await this.houseMembersService.getHouseMembersMap(houseId);
+
+    // Set default date range (1 month back if not provided)
+    const defaultEndDate = new Date();
+    const defaultStartDate = new Date();
+    defaultStartDate.setMonth(defaultStartDate.getMonth() - 1);
+
+    const actualStartDate = startDate ? new Date(startDate) : defaultStartDate;
+    const actualEndDate = endDate ? new Date(endDate) : defaultEndDate;
+
+    const transactions = [];
+
+    // Get expenses if type is not 'payment'
+    if (type !== 'payment') {
+      const baseDateFilter = {
+        houseId,
+        expenseDate: Between(actualStartDate.toISOString().split('T')[0], actualEndDate.toISOString().split('T')[0])
+      };
+
+      let expenseWhere;
+
+      // If userOnly, filter to expenses involving the user at database level
+      if (userOnly) {
+        expenseWhere = [
+          {
+            ...baseDateFilter,
+            paidById: userId
+          },
+          {
+            ...baseDateFilter,
+            splitBetween: ArrayContains([userId])
+          }
+        ];
+      } else {
+        expenseWhere = baseDateFilter;
+      }
+
+      const expenses = await this.expensesRepository.find({
+        where: expenseWhere,
+        relations: ['category'],
+        order: { expenseDate: 'DESC', createdAt: 'DESC' }
+      });
+
+      const expenseTransactions = expenses.map(expense => {
+        const userShare = expense.splitBetween.includes(userId)
+          ? expense.amountPerPerson
+          : 0;
+
+        return {
+          id: expense.id,
+          type: 'expense' as const,
+          date: expense.expenseDate,
+          description: expense.description,
+          amount: Number(expense.amount),
+          userShare: Number(userShare),
+          createdBy: membersMap.get(expense.paidById),
+          splitBetween: expense.splitBetween
+            .map(id => membersMap.get(id))
+            .filter(user => user),
+          category: {
+            id: expense.category.id,
+            name: expense.category.name,
+            description: expense.category.description,
+            color: expense.category.color,
+            icon: expense.category.icon
+          }
+        };
+      });
+
+      transactions.push(...expenseTransactions);
+    }
+
+    // Get payments if type is not 'expense'
+    if (type !== 'expense') {
+      const baseDateFilter = {
+        houseId,
+        paymentDate: Between(actualStartDate.toISOString().split('T')[0], actualEndDate.toISOString().split('T')[0])
+      };
+
+      let paymentWhere;
+
+      // If userOnly, filter to payments involving the user at database level
+      if (userOnly) {
+        paymentWhere = [
+          {
+            ...baseDateFilter,
+            fromUserId: userId
+          },
+          {
+            ...baseDateFilter,
+            toUserId: userId
+          }
+        ];
+      } else {
+        paymentWhere = baseDateFilter;
+      }
+
+      const payments = await this.paymentsRepository.find({
+        where: paymentWhere,
+        order: { paymentDate: 'DESC', createdAt: 'DESC' }
+      });
+
+      const paymentTransactions = payments.map(payment => ({
+        id: payment.id,
+        type: 'payment' as const,
+        date: payment.paymentDate,
+        description: payment.memo || 'Payment',
+        amount: Number(payment.amount),
+        fromUser: membersMap.get(payment.fromUserId),
+        toUser: membersMap.get(payment.toUserId)
+      }));
+
+      transactions.push(...paymentTransactions);
+    }
+
+    // Sort all transactions by date (most recent first)
+    transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    return { transactions };
   }
 }

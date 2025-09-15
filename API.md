@@ -23,6 +23,9 @@ http://localhost:3001
 | **Authentication** | GET    | `/auth/profile`                                           | Get user profile                         |
 | **Authentication** | PATCH  | `/auth/profile`                                           | Update user profile                      |
 | **Authentication** | POST   | `/auth/upload-profile-image`                              | Upload profile image                     |
+| **Authentication** | POST   | `/auth/forgot-password`                                   | Request password reset                   |
+| **Authentication** | GET    | `/auth/reset-password/{token}`                            | Verify password reset token              |
+| **Authentication** | POST   | `/auth/reset-password`                                    | Reset password with token                |
 | **Houses**         | POST   | `/houses`                                                 | Create house                             |
 | **Houses**         | POST   | `/houses/join`                                            | Join house                               |
 | **Houses**         | GET    | `/houses`                                                 | Get user houses                          |
@@ -35,8 +38,9 @@ http://localhost:3001
 | **Expenses**       | GET    | `/houses/{houseId}/expenses`                              | Get house expenses                       |
 | **Expenses**       | GET    | `/houses/{houseId}/expenses/{expenseId}`                  | Get expense details                      |
 | **Balances**       | GET    | `/houses/{houseId}/balances`                              | Get house balances                       |
+| **Balances**       | GET    | `/houses/{houseId}/balances/user`                         | Get user balances in house               |
+| **Transactions**   | GET    | `/houses/{houseId}/transactions`                          | Get transactions (expenses + payments)   |
 | **Payments**       | POST   | `/houses/{houseId}/payments`                              | Create payment                           |
-| **Payments**       | GET    | `/houses/{houseId}/payments`                              | Get house payments                       |
 | **Shopping Lists** | GET    | `/houses/{houseId}/shopping-list`                         | Get house shopping list                  |
 | **Shopping Lists** | GET    | `/houses/{houseId}/shopping-list/items`                   | Get shopping list items (with filtering) |
 | **Shopping Lists** | POST   | `/houses/{houseId}/shopping-list/items`                   | Add shopping item                        |
@@ -55,14 +59,12 @@ http://localhost:3001
 - **⚖️ Balance Management** - Automatic calculation of who owes what to whom
 - **💸 Payment Recording** - Record payments between house members with balance updates
 - **📊 Categorization** - Organize expenses by categories
-  <<<<<<< HEAD
 - **🛒 Shopping Lists** - Collaborative shopping lists with recurring items and smart duplicate detection
 - **🔄 Recurring Items** - Auto-regenerating shopping items based on configurable intervals
 - **📝 Batch Operations** - Purchase multiple items at once for efficiency
-- # **🎨 Customization** - User profile images/colors and house images/colors
 - **🎨 Customization** - User profile images/colors and house images/colors with Cloudinary integration
 - **📸 Image Upload** - Secure image uploads with automatic optimization and CDN delivery
-  > > > > > > > main
+- **📈 Transaction History** - Unified view of expenses and payments with filtering and date ranges
 - **📋 Comprehensive API** - Full CRUD operations with detailed error handling
 
 ## Authentication
@@ -267,6 +269,138 @@ Upload a profile image and automatically update the user's profileImageUrl. Imag
   "updatedAt": "2025-09-07T14:00:00Z"
 }
 ```
+
+### 🔑 Request Password Reset
+
+**POST** `/auth/forgot-password`
+
+Request a password reset link to be sent to the user's email address. This endpoint always returns success to prevent email enumeration attacks.
+
+**Request Body:**
+
+```json
+{
+  "email": "john@example.com"
+}
+```
+
+**Responses:**
+
+- **200 OK**: Request processed (email sent if account exists)
+- **400 Bad Request**: Invalid email format
+
+**Success Response:**
+
+```json
+{
+  "message": "If an account with that email exists, we have sent you a password reset link."
+}
+```
+
+**Security Features:**
+- ⏱️ Rate limited to 3 requests per email per hour
+- 🔒 Always returns success regardless of email existence
+- 📧 15-minute token expiry for security
+- 🚫 Automatic token invalidation after use
+
+### ✅ Verify Password Reset Token
+
+**GET** `/auth/reset-password/{token}`
+
+Verify if a password reset token is valid and not expired. This endpoint is used by the frontend to validate tokens before showing the password reset form.
+
+**Parameters:**
+
+- `token` (path): The reset token from the email link
+
+**Responses:**
+
+- **200 OK**: Token verification result
+
+**Success Response:**
+
+```json
+{
+  "valid": true,
+  "message": "Token is valid"
+}
+```
+
+**Invalid Token Response:**
+
+```json
+{
+  "valid": false,
+  "message": "Invalid or expired token"
+}
+```
+
+### 🔐 Reset Password
+
+**POST** `/auth/reset-password`
+
+Reset the user's password using a valid reset token and new password.
+
+**Request Body:**
+
+```json
+{
+  "token": "abc123def456...",
+  "newPassword": "NewSecurePassword123!"
+}
+```
+
+**Password Requirements:**
+- Minimum 8 characters
+- At least one uppercase letter
+- At least one lowercase letter
+- At least one number
+- At least one special character (@$!%*?&)
+
+**Responses:**
+
+- **200 OK**: Password reset successfully
+- **400 Bad Request**: Invalid token, expired token, or invalid password format
+
+**Success Response:**
+
+```json
+{
+  "message": "Password has been reset successfully"
+}
+```
+
+**Error Responses:**
+
+```json
+{
+  "statusCode": 400,
+  "message": "Invalid or expired reset token",
+  "error": "Bad Request"
+}
+```
+
+```json
+{
+  "statusCode": 400,
+  "message": [
+    "Password must be at least 8 characters long",
+    "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character"
+  ],
+  "error": "Bad Request"
+}
+```
+
+### 🔗 Deep Link Integration
+
+For React Native apps, password reset emails contain deep links that open the app directly:
+
+**Email Link Format:**
+```
+roomiesync://reset-password?token=abc123def456...
+```
+
+**Setup Guide:** See `REACT_NATIVE_DEEP_LINKS.md` for complete setup instructions.
 
 ---
 
@@ -734,12 +868,16 @@ Create a new expense and automatically update balances between house members.
     "id": "user-uuid-1",
     "firstName": "John",
     "lastName": "Doe",
-    "email": "john@example.com"
+    "email": "john@example.com",
+    "color": "#6366F1",
+    "displayName": "Johnny"
   },
   "category": {
     "id": "category-uuid",
     "name": "Groceries",
-    "color": "#10B981"
+    "description": "Food and household essentials",
+    "color": "#10B981",
+    "icon": "shopping-cart"
   }
 }
 ```
@@ -778,12 +916,16 @@ Get all expenses for the house, ordered by date (most recent first).
       "id": "user-uuid-1",
       "firstName": "John",
       "lastName": "Doe",
-      "email": "john@example.com"
+      "email": "john@example.com",
+      "color": "#6366F1",
+      "displayName": "Johnny"
     },
     "category": {
       "id": "category-uuid",
       "name": "Groceries",
-      "color": "#10B981"
+      "description": "Food and household essentials",
+      "color": "#10B981",
+      "icon": "shopping-cart"
     }
   }
 ]
@@ -882,7 +1024,9 @@ Get IOU balances for the requesting user in a specific house. Shows both debts o
       "id": "user-uuid-2",
       "firstName": "John",
       "lastName": "Doe",
-      "email": "john@example.com"
+      "email": "john@example.com",
+      "color": "#6366F1",
+      "displayName": "Johnny"
     }
   },
   {
@@ -894,7 +1038,9 @@ Get IOU balances for the requesting user in a specific house. Shows both debts o
       "id": "user-uuid-3",
       "firstName": "Sarah",
       "lastName": "Wilson",
-      "email": "sarah@example.com"
+      "email": "sarah@example.com",
+      "color": "#EC4899",
+      "displayName": "Sarah"
     }
   }
 ]
@@ -904,6 +1050,120 @@ Get IOU balances for the requesting user in a specific house. Shows both debts o
 - `type`: Either "owes" (user owes money to otherUser) or "owed_by" (otherUser owes money to user)
 - `otherUser`: The other party in the balance relationship
 - `amount`: Always positive, representing the absolute amount of the debt
+
+---
+
+## Transaction History Endpoints
+
+### 📈 Get House Transactions
+
+**GET** `/houses/{houseId}/transactions`
+
+**Headers:** `Authorization: Bearer <token>`
+
+Get comprehensive transaction history including both expenses and payments with optional filtering by user, date range, and transaction type.
+
+**Parameters:**
+
+- `houseId` (path): House UUID
+- `userOnly` (query, optional): If true, only return transactions involving the authenticated user (default: false)
+- `startDate` (query, optional): Start date for filtering (YYYY-MM-DD). Defaults to 1 month ago
+- `endDate` (query, optional): End date for filtering (YYYY-MM-DD). Defaults to today
+- `type` (query, optional): Filter by transaction type ('expense' or 'payment')
+
+**Responses:**
+
+- **200 OK**: List of transactions
+- **404 Not Found**: House not found or user is not a member
+
+**Success Response:**
+
+```json
+{
+  "transactions": [
+    {
+      "id": "expense-uuid",
+      "type": "expense",
+      "date": "2025-01-15",
+      "description": "Groceries",
+      "amount": 120.50,
+      "userShare": 60.25,
+      "createdBy": {
+        "id": "user-uuid",
+        "firstName": "John",
+        "lastName": "Doe",
+        "email": "john@example.com",
+        "color": "#6366F1",
+        "displayName": "Johnny"
+      },
+      "splitBetween": [
+        {
+          "id": "user-uuid-1",
+          "firstName": "John",
+          "lastName": "Doe",
+          "email": "john@example.com",
+          "color": "#6366F1",
+          "displayName": "Johnny"
+        },
+        {
+          "id": "user-uuid-2",
+          "firstName": "Alice",
+          "lastName": "Smith",
+          "email": "alice@example.com",
+          "color": "#EC4899",
+          "displayName": "Alice"
+        }
+      ],
+      "category": {
+        "id": "category-uuid",
+        "name": "Groceries",
+        "description": "Food and household essentials",
+        "color": "#10B981",
+        "icon": "shopping-cart"
+      }
+    },
+    {
+      "id": "payment-uuid",
+      "type": "payment",
+      "date": "2025-01-14",
+      "description": "Payment to Alice",
+      "amount": 35.50,
+      "fromUser": {
+        "id": "user-uuid",
+        "firstName": "John",
+        "lastName": "Doe",
+        "email": "john@example.com",
+        "color": "#6366F1",
+        "displayName": "Johnny"
+      },
+      "toUser": {
+        "id": "user-uuid-2",
+        "firstName": "Alice",
+        "lastName": "Smith",
+        "email": "alice@example.com",
+        "color": "#EC4899",
+        "displayName": "Alice"
+      }
+    }
+  ]
+}
+```
+
+**Query Examples:**
+
+```bash
+# Get all transactions for the house
+GET /houses/{houseId}/transactions
+
+# Get only current user's transactions
+GET /houses/{houseId}/transactions?userOnly=true
+
+# Get only expenses from last month
+GET /houses/{houseId}/transactions?type=expense&startDate=2024-12-01&endDate=2024-12-31
+
+# Get user's payments from specific date range
+GET /houses/{houseId}/transactions?userOnly=true&type=payment&startDate=2025-01-01&endDate=2025-01-31
+```
 
 ---
 
@@ -952,60 +1212,19 @@ Record a payment between house members and automatically update balances.
     "id": "user-uuid-1",
     "firstName": "John",
     "lastName": "Doe",
-    "email": "john@example.com"
+    "email": "john@example.com",
+    "color": "#6366F1",
+    "displayName": "Johnny"
   },
   "toUser": {
     "id": "user-uuid-2",
     "firstName": "Alice",
     "lastName": "Smith",
-    "email": "alice@example.com"
+    "email": "alice@example.com",
+    "color": "#EC4899",
+    "displayName": "Alice"
   }
 }
-```
-
-### 💳 Get House Payments
-
-**GET** `/houses/{houseId}/payments`
-
-**Headers:** `Authorization: Bearer <token>`
-
-Get all payments in the house or just payments involving the authenticated user.
-
-**Parameters:**
-
-- `houseId` (path): House UUID
-- `userOnly` (query, optional): If true, only return payments involving the authenticated user
-
-**Responses:**
-
-- **200 OK**: List of payments
-- **404 Not Found**: House not found or user is not a member
-
-**Success Response:**
-
-```json
-[
-  {
-    "id": "payment-uuid",
-    "amount": 125.5,
-    "memo": "Groceries repayment",
-    "paymentDate": "2025-09-06",
-    "createdAt": "2025-09-06T12:00:00Z",
-    "updatedAt": "2025-09-06T12:00:00Z",
-    "fromUser": {
-      "id": "user-uuid-1",
-      "firstName": "John",
-      "lastName": "Doe",
-      "email": "john@example.com"
-    },
-    "toUser": {
-      "id": "user-uuid-2",
-      "firstName": "Alice",
-      "lastName": "Smith",
-      "email": "alice@example.com"
-    }
-  }
-]
 ```
 
 ---
@@ -1052,12 +1271,17 @@ Get the primary shopping list for a house with all items.
       "category": {
         "id": "category-uuid",
         "name": "Groceries",
-        "color": "#6B7280"
+        "description": "Food and household essentials",
+        "color": "#6B7280",
+        "icon": "shopping-cart"
       },
       "assignedTo": {
         "id": "user-uuid",
         "firstName": "John",
-        "lastName": "Doe"
+        "lastName": "Doe",
+        "email": "john@example.com",
+        "color": "#3B82F6",
+        "displayName": "Johnny"
       }
     }
   ]
@@ -1150,7 +1374,10 @@ Add a new item to the shopping list with optional recurring settings and smart d
   "recurringInterval": 14,
   "category": {
     "id": "category-uuid",
-    "name": "Groceries"
+    "name": "Groceries",
+    "description": "Food and household essentials",
+    "color": "#6B7280",
+    "icon": "shopping-cart"
   },
   "assignedTo": null
 }
@@ -1247,7 +1474,10 @@ Mark a shopping item as purchased by the authenticated user.
   "purchasedBy": {
     "id": "user-uuid",
     "firstName": "John",
-    "lastName": "Doe"
+    "lastName": "Doe",
+    "email": "john@example.com",
+    "color": "#3B82F6",
+    "displayName": "Johnny"
   }
 }
 ```
@@ -1291,7 +1521,10 @@ Mark multiple shopping items as purchased in one operation.
     "purchasedBy": {
       "id": "user-uuid",
       "firstName": "John",
-      "lastName": "Doe"
+      "lastName": "Doe",
+      "email": "john@example.com",
+      "color": "#3B82F6",
+      "displayName": "Johnny"
     }
   }
 ]
@@ -1358,7 +1591,10 @@ Get recently purchased recurring items with countdown until they return to the s
     "purchasedBy": {
       "id": "user-uuid",
       "firstName": "John",
-      "lastName": "Doe"
+      "lastName": "Doe",
+      "email": "john@example.com",
+      "color": "#3B82F6",
+      "displayName": "Johnny"
     }
   }
 ]
@@ -1396,11 +1632,17 @@ Get all purchased items from the shopping list for historical tracking.
     "purchasedBy": {
       "id": "user-uuid",
       "firstName": "John",
-      "lastName": "Doe"
+      "lastName": "Doe",
+      "email": "john@example.com",
+      "color": "#3B82F6",
+      "displayName": "Johnny"
     },
     "category": {
       "id": "category-uuid",
-      "name": "Groceries"
+      "name": "Groceries",
+      "description": "Food and household essentials",
+      "color": "#6B7280",
+      "icon": "shopping-cart"
     }
   }
 ]
@@ -1543,20 +1785,44 @@ Welcome to RoomieSync API! 🏠
 
 ### Category
 
+Categories are used to organize expenses and shopping items with visual indicators.
+
 ```typescript
 {
   id: string;           // UUID
-  name: string;         // Category name
+  name: string;         // Category name (e.g., "Groceries", "Utilities", "Entertainment")
   description?: string; // Optional description
-  color: string;        // Hex color code (default: #6B7280)
-  icon?: string;        // Optional icon identifier
-  isActive: boolean;    // Category status
-  isDefault: boolean;   // Whether this is a default category
-  sortOrder: number;    // Display order
+  color: string;        // Hex color code for visual distinction (default: #6B7280)
+  icon?: string;        // Optional icon identifier (e.g., "shopping-cart", "lightbulb", "movie")
+  isActive: boolean;    // Category status (inactive categories are hidden)
+  isDefault: boolean;   // Whether this is a default category (cannot be deleted)
+  sortOrder: number;    // Display order (lower numbers appear first)
   createdAt: Date;      // Creation date
   updatedAt: Date;      // Last update date
   house: House;         // House this category belongs to
 }
+```
+
+**Category Object in API Responses:**
+
+When categories appear in expense, transaction, or shopping list responses, they include:
+
+```json
+{
+  "id": "category-uuid",
+  "name": "Groceries",
+  "description": "Food and household essentials",
+  "color": "#10B981",
+  "icon": "shopping-cart"
+}
+```
+
+**Common Category Examples:**
+- **Groceries**: `color: "#10B981"`, `icon: "shopping-cart"`
+- **Utilities**: `color: "#F59E0B"`, `icon: "lightbulb"`
+- **Entertainment**: `color: "#8B5CF6"`, `icon: "movie"`
+- **Transportation**: `color: "#06B6D4"`, `icon: "car"`
+- **Household**: `color: "#EF4444"`, `icon: "home"`
 ```
 
 ### ShoppingList
@@ -1804,17 +2070,23 @@ curl -X POST http://localhost:3001/houses/HOUSE_ID/payments \
   }'
 ```
 
-**Get all house payments:**
+**Get transaction history:**
 
 ```bash
-curl -X GET http://localhost:3001/houses/HOUSE_ID/payments \
+# Get all transactions for the house (default: last month)
+curl -X GET http://localhost:3001/houses/HOUSE_ID/transactions \
   -H "Authorization: Bearer TOKEN"
-```
 
-**Get only user's payments:**
+# Get only user's transactions
+curl -X GET "http://localhost:3001/houses/HOUSE_ID/transactions?userOnly=true" \
+  -H "Authorization: Bearer TOKEN"
 
-```bash
-curl -X GET "http://localhost:3001/houses/HOUSE_ID/payments?userOnly=true" \
+# Get only payments from specific date range
+curl -X GET "http://localhost:3001/houses/HOUSE_ID/transactions?type=payment&startDate=2025-01-01&endDate=2025-01-31" \
+  -H "Authorization: Bearer TOKEN"
+
+# Get user's expenses from last month
+curl -X GET "http://localhost:3001/houses/HOUSE_ID/transactions?userOnly=true&type=expense" \
   -H "Authorization: Bearer TOKEN"
 ```
 
@@ -1994,3 +2266,29 @@ The Swagger UI provides:
 - 📋 Request/response examples
 - 🔐 Built-in authentication
 - 📚 Complete API documentation
+
+---
+
+## Recent API Changes
+
+### Version 2.0 Updates
+
+**🆕 New Transactions Endpoint:**
+- Added unified `GET /houses/{houseId}/transactions` endpoint
+- Combines expenses and payments in a single response
+- Supports filtering by user, date range, and transaction type
+- Default date range: 1 month back from current date
+
+**🎨 Enhanced User Objects:**
+- All user objects now include `displayName` (house-specific name) and `color`
+- Affects responses from `/balances/user`, `/expenses`, `/payments`, and `/transactions`
+- Provides consistent user representation across all endpoints
+
+**🗑️ Removed Endpoints:**
+- Removed `GET /houses/{houseId}/payments?userOnly=true` parameter
+- Use `GET /houses/{houseId}/transactions?userOnly=true&type=payment` instead
+
+**📊 Improved Data Structure:**
+- Transaction history shows expense `splitBetween` users with full details
+- Better representation of who participated in each expense
+- Enhanced filtering and sorting capabilities

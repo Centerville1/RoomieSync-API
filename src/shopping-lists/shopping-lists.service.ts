@@ -7,6 +7,7 @@ import { CreateShoppingItemDto } from './dto/create-shopping-item.dto';
 import { UpdateShoppingItemDto } from './dto/update-shopping-item.dto';
 import { BatchPurchaseDto } from './dto/batch-purchase.dto';
 import { GetItemsQueryDto } from './dto/get-items-query.dto';
+import { HouseMembersService } from '../common/house-members.service';
 
 @Injectable()
 export class ShoppingListsService {
@@ -19,6 +20,7 @@ export class ShoppingListsService {
     private houseMembershipRepository: Repository<HouseMembership>,
     @InjectRepository(Category)
     private categoryRepository: Repository<Category>,
+    private houseMembersService: HouseMembersService,
   ) {}
 
   @Cron('0 */6 * * *') // Every 6 hours
@@ -55,14 +57,32 @@ export class ShoppingListsService {
       throw new NotFoundException('Shopping list not found for this house');
     }
 
+    // Get house members map for display names and colors
+    const membersMap = await this.houseMembersService.getHouseMembersMap(houseId);
+
+    // Enhance user objects in items
+    if (shoppingList.items) {
+      shoppingList.items = shoppingList.items.map(item => ({
+        ...item,
+        assignedTo: item.assignedTo ? this.houseMembersService.enhanceUserObject(item.assignedTo, membersMap) : null,
+        purchasedBy: item.purchasedBy ? this.houseMembersService.enhanceUserObject(item.purchasedBy, membersMap) : null,
+      }));
+    }
+
     return shoppingList;
   }
 
   async getShoppingListItems(houseId: string, userId: string, query: GetItemsQueryDto) {
     await this.verifyHouseMembership(userId, houseId);
-    
-    const shoppingList = await this.getHouseShoppingList(houseId, userId);
-    
+
+    const shoppingList = await this.shoppingListRepository.findOne({
+      where: { primaryForHouse: { id: houseId } }
+    });
+
+    if (!shoppingList) {
+      throw new NotFoundException('Shopping list not found for this house');
+    }
+
     let queryBuilder = this.shoppingItemRepository
       .createQueryBuilder('item')
       .leftJoinAndSelect('item.category', 'category')
@@ -86,14 +106,30 @@ export class ShoppingListsService {
       queryBuilder = queryBuilder.andWhere('item.assignedToId = :assignedToId', { assignedToId: query.assignedToId });
     }
 
-    return await queryBuilder.getMany();
+    const items = await queryBuilder.getMany();
+
+    // Get house members map for display names and colors
+    const membersMap = await this.houseMembersService.getHouseMembersMap(houseId);
+
+    // Enhance user objects in items
+    return items.map(item => ({
+      ...item,
+      assignedTo: item.assignedTo ? this.houseMembersService.enhanceUserObject(item.assignedTo, membersMap) : null,
+      purchasedBy: item.purchasedBy ? this.houseMembersService.enhanceUserObject(item.purchasedBy, membersMap) : null,
+    }));
   }
 
   async getRecentRecurringItems(houseId: string, userId: string) {
     await this.verifyHouseMembership(userId, houseId);
-    
-    const shoppingList = await this.getHouseShoppingList(houseId, userId);
-    
+
+    const shoppingList = await this.shoppingListRepository.findOne({
+      where: { primaryForHouse: { id: houseId } }
+    });
+
+    if (!shoppingList) {
+      throw new NotFoundException('Shopping list not found for this house');
+    }
+
     const recentRecurringItems = await this.shoppingItemRepository
       .createQueryBuilder('item')
       .leftJoinAndSelect('item.category', 'category')
@@ -105,8 +141,12 @@ export class ShoppingListsService {
       .orderBy('item.purchasedAt', 'DESC')
       .getMany();
 
+    // Get house members map for display names and colors
+    const membersMap = await this.houseMembersService.getHouseMembersMap(houseId);
+
     return recentRecurringItems.map(item => ({
       ...item,
+      purchasedBy: item.purchasedBy ? this.houseMembersService.enhanceUserObject(item.purchasedBy, membersMap) : null,
       daysUntilReturn: this.calculateDaysUntilReturn(item),
       hasRecurred: item.lastRecurredAt && item.lastRecurredAt >= item.purchasedAt
     }));
@@ -162,13 +202,16 @@ export class ShoppingListsService {
 
     const savedItem = await this.shoppingItemRepository.save(item);
     
-    // Return with relations
+    // Return with relations and enhanced user objects
     const itemWithRelations = await this.shoppingItemRepository.findOne({
       where: { id: savedItem.id },
       relations: ['category', 'assignedTo', 'purchasedBy']
     });
 
-    return itemWithRelations;
+    // Get house members map for display names and colors
+    const membersMap = await this.houseMembersService.getHouseMembersMap(houseId);
+
+    return this.enhanceItemUserObjects(itemWithRelations, membersMap);
   }
 
   async updateShoppingItem(houseId: string, userId: string, itemId: string, updateDto: UpdateShoppingItemDto): Promise<ShoppingItem> {
@@ -215,12 +258,17 @@ export class ShoppingListsService {
 
     Object.assign(item, updateDto);
     await this.shoppingItemRepository.save(item);
-    
-    // Return with relations
-    return await this.shoppingItemRepository.findOne({
+
+    // Return with relations and enhanced user objects
+    const itemWithRelations = await this.shoppingItemRepository.findOne({
       where: { id: itemId },
       relations: ['category', 'assignedTo', 'purchasedBy']
     });
+
+    // Get house members map for display names and colors
+    const membersMap = await this.houseMembersService.getHouseMembersMap(houseId);
+
+    return this.enhanceItemUserObjects(itemWithRelations, membersMap);
   }
 
   async purchaseItem(houseId: string, userId: string, itemId: string): Promise<ShoppingItem> {
@@ -250,11 +298,16 @@ export class ShoppingListsService {
 
     // Note: Recurring item creation now handled by cron job, not immediately
 
-    // Return with relations
-    return await this.shoppingItemRepository.findOne({
+    // Return with relations and enhanced user objects
+    const itemWithRelations = await this.shoppingItemRepository.findOne({
       where: { id: itemId },
       relations: ['category', 'assignedTo', 'purchasedBy']
     });
+
+    // Get house members map for display names and colors
+    const membersMap = await this.houseMembersService.getHouseMembersMap(houseId);
+
+    return this.enhanceItemUserObjects(itemWithRelations, membersMap);
   }
 
   async batchPurchaseItems(houseId: string, userId: string, batchDto: BatchPurchaseDto): Promise<ShoppingItem[]> {
@@ -279,21 +332,24 @@ export class ShoppingListsService {
       throw new BadRequestException('Some items do not belong to this house or are already purchased');
     }
 
+    // Get house members map for display names and colors (once for all items)
+    const membersMap = await this.houseMembersService.getHouseMembersMap(houseId);
+
     // Update all items
     const now = new Date();
     const updatedItems: ShoppingItem[] = [];
-    
+
     for (const item of items) {
       item.purchasedAt = now;
       item.purchasedById = userId;
       await this.shoppingItemRepository.save(item);
 
-      // Get updated item with relations
+      // Get updated item with relations and enhance user objects
       const updatedItem = await this.shoppingItemRepository.findOne({
         where: { id: item.id },
         relations: ['category', 'assignedTo', 'purchasedBy']
       });
-      updatedItems.push(updatedItem);
+      updatedItems.push(this.enhanceItemUserObjects(updatedItem, membersMap));
     }
 
     // Note: Recurring item creation now handled by cron job, not immediately
@@ -323,10 +379,16 @@ export class ShoppingListsService {
 
   async getPurchaseHistory(houseId: string, userId: string): Promise<ShoppingItem[]> {
     await this.verifyHouseMembership(userId, houseId);
-    
-    const shoppingList = await this.getHouseShoppingList(houseId, userId);
-    
-    return await this.shoppingItemRepository.find({
+
+    const shoppingList = await this.shoppingListRepository.findOne({
+      where: { primaryForHouse: { id: houseId } }
+    });
+
+    if (!shoppingList) {
+      throw new NotFoundException('Shopping list not found for this house');
+    }
+
+    const items = await this.shoppingItemRepository.find({
       where: {
         shoppingListId: shoppingList.id,
         purchasedAt: Not(IsNull())
@@ -334,6 +396,12 @@ export class ShoppingListsService {
       relations: ['category', 'assignedTo', 'purchasedBy'],
       order: { purchasedAt: 'DESC' }
     });
+
+    // Get house members map for display names and colors
+    const membersMap = await this.houseMembersService.getHouseMembersMap(houseId);
+
+    // Enhance user objects in items
+    return items.map(item => this.enhanceItemUserObjects(item, membersMap));
   }
 
   private async createRecurringItem(originalItem: ShoppingItem): Promise<void> {
@@ -405,15 +473,23 @@ export class ShoppingListsService {
 
   private calculateDaysUntilReturn(item: ShoppingItem): number {
     if (!item.purchasedAt || !item.recurringInterval) return 0;
-    
+
     const purchaseDate = new Date(item.purchasedAt);
     const returnDate = new Date(purchaseDate.getTime() + item.recurringInterval * 24 * 60 * 60 * 1000);
     const now = new Date();
-    
+
     const diffTime = returnDate.getTime() - now.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
+
     return Math.max(0, diffDays);
+  }
+
+  private enhanceItemUserObjects(item: ShoppingItem, membersMap: Map<string, any>): ShoppingItem {
+    return {
+      ...item,
+      assignedTo: item.assignedTo ? this.houseMembersService.enhanceUserObject(item.assignedTo, membersMap) : null,
+      purchasedBy: item.purchasedBy ? this.houseMembersService.enhanceUserObject(item.purchasedBy, membersMap) : null,
+    };
   }
 
   private async verifyHouseMembership(userId: string, houseId: string): Promise<void> {

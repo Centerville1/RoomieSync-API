@@ -58,7 +58,9 @@ export class ShoppingListsController {
             category: {
               id: 'uuid',
               name: 'Groceries',
-              color: '#6B7280'
+              description: 'Food and household essentials',
+              color: '#6B7280',
+              icon: 'shopping-cart'
             },
             assignedTo: {
               id: 'uuid',
@@ -195,7 +197,10 @@ export class ShoppingListsController {
         recurringInterval: 14,
         category: {
           id: 'uuid',
-          name: 'Groceries'
+          name: 'Groceries',
+          description: 'Food and household essentials',
+          color: '#6B7280',
+          icon: 'shopping-cart'
         },
         assignedTo: null
       }
@@ -409,7 +414,10 @@ export class ShoppingListsController {
           },
           category: {
             id: 'uuid',
-            name: 'Groceries'
+            name: 'Groceries',
+            description: 'Food and household essentials',
+            color: '#6B7280',
+            icon: 'shopping-cart'
           }
         }
       }

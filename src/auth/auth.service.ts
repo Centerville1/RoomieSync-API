@@ -1,11 +1,15 @@
-import { Injectable, ConflictException, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, ConflictException, UnauthorizedException, BadRequestException, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, MoreThan } from 'typeorm';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
-import { User, House, HouseMembership, MemberRole } from '../entities';
+import * as crypto from 'crypto';
+import { User, House, HouseMembership, MemberRole, PasswordResetToken } from '../entities';
 import { RegisterDto } from './dto/register.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class AuthService {
@@ -16,7 +20,10 @@ export class AuthService {
     private housesRepository: Repository<House>,
     @InjectRepository(HouseMembership)
     private houseMembershipsRepository: Repository<HouseMembership>,
+    @InjectRepository(PasswordResetToken)
+    private passwordResetTokenRepository: Repository<PasswordResetToken>,
     private jwtService: JwtService,
+    private emailService: EmailService,
   ) {}
 
   async validateUser(email: string, password: string): Promise<any> {
@@ -161,5 +168,156 @@ export class AuthService {
     // Return user without password
     const { password, ...result } = updatedUser;
     return result;
+  }
+
+  async forgotPassword(forgotPasswordDto: ForgotPasswordDto): Promise<{ message: string }> {
+    const { email } = forgotPasswordDto;
+
+    // Check rate limiting - max 3 requests per email per hour
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const recentTokensCount = await this.passwordResetTokenRepository.count({
+      where: {
+        user: { email },
+        createdAt: MoreThan(oneHourAgo)
+      },
+      relations: ['user']
+    });
+
+    if (recentTokensCount >= 3) {
+      // Still return success to prevent email enumeration
+      return { message: 'If an account with that email exists, we have sent you a password reset link.' };
+    }
+
+    // Find user by email
+    const user = await this.usersRepository.findOne({
+      where: { email, isActive: true }
+    });
+
+    if (!user) {
+      // Don't reveal whether email exists - return success anyway
+      return { message: 'If an account with that email exists, we have sent you a password reset link.' };
+    }
+
+    // Generate secure token
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const hashedToken = await bcrypt.hash(rawToken, 10);
+
+    // Set expiry to 15 minutes from now
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+    // Invalidate any existing tokens for this user
+    await this.passwordResetTokenRepository.update(
+      { userId: user.id, used: false },
+      { used: true }
+    );
+
+    // Create new reset token
+    const resetToken = this.passwordResetTokenRepository.create({
+      userId: user.id,
+      token: hashedToken,
+      expiresAt,
+      used: false
+    });
+
+    await this.passwordResetTokenRepository.save(resetToken);
+
+    // Send email with raw token (not hashed)
+    try {
+      await this.emailService.sendPasswordResetEmail(
+        user.email,
+        user.firstName,
+        rawToken
+      );
+    } catch (error) {
+      // Log error but don't reveal it to user
+      console.error('Failed to send password reset email:', error);
+    }
+
+    return { message: 'If an account with that email exists, we have sent you a password reset link.' };
+  }
+
+  async verifyResetToken(token: string): Promise<{ valid: boolean; message: string }> {
+    // Find all non-used, non-expired tokens
+    const resetTokens = await this.passwordResetTokenRepository.find({
+      where: {
+        used: false,
+        expiresAt: MoreThan(new Date())
+      }
+    });
+
+    // Check if provided token matches any of the hashed tokens
+    for (const resetToken of resetTokens) {
+      const isTokenValid = await bcrypt.compare(token, resetToken.token);
+      if (isTokenValid) {
+        return { valid: true, message: 'Token is valid' };
+      }
+    }
+
+    return { valid: false, message: 'Invalid or expired token' };
+  }
+
+  async resetPassword(resetPasswordDto: ResetPasswordDto): Promise<{ message: string }> {
+    const { token, newPassword } = resetPasswordDto;
+
+    // Find all non-used, non-expired tokens
+    const resetTokens = await this.passwordResetTokenRepository.find({
+      where: {
+        used: false,
+        expiresAt: MoreThan(new Date())
+      },
+      relations: ['user']
+    });
+
+    let matchedToken: PasswordResetToken | null = null;
+
+    // Check if provided token matches any of the hashed tokens
+    for (const resetToken of resetTokens) {
+      const isTokenValid = await bcrypt.compare(token, resetToken.token);
+      if (isTokenValid) {
+        matchedToken = resetToken;
+        break;
+      }
+    }
+
+    if (!matchedToken) {
+      throw new BadRequestException('Invalid or expired reset token');
+    }
+
+    // Get the user
+    const user = matchedToken.user;
+    if (!user || !user.isActive) {
+      throw new NotFoundException('User not found or account is inactive');
+    }
+
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update user password
+    await this.usersRepository.update(user.id, {
+      password: hashedPassword,
+      updatedAt: new Date()
+    });
+
+    // Mark token as used
+    await this.passwordResetTokenRepository.update(matchedToken.id, {
+      used: true
+    });
+
+    // Optionally: Invalidate all other reset tokens for this user
+    await this.passwordResetTokenRepository.update(
+      { userId: user.id, used: false },
+      { used: true }
+    );
+
+    return { message: 'Password has been reset successfully' };
+  }
+
+  async cleanupExpiredTokens(): Promise<void> {
+    // Remove expired tokens (older than 24 hours)
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+    await this.passwordResetTokenRepository.delete({
+      expiresAt: MoreThan(oneDayAgo)
+    });
   }
 }

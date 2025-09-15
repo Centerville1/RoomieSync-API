@@ -9,6 +9,7 @@ import {
   UseInterceptors,
   UploadedFile,
   BadRequestException,
+  Param,
 } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import {
@@ -26,6 +27,8 @@ import { AuthService } from "./auth.service";
 import { RegisterDto } from "./dto/register.dto";
 import { LoginDto } from "./dto/login.dto";
 import { UpdateProfileDto } from "./dto/update-profile.dto";
+import { ForgotPasswordDto } from "./dto/forgot-password.dto";
+import { ResetPasswordDto } from "./dto/reset-password.dto";
 import { LocalAuthGuard } from "./guards/local-auth.guard";
 import { JwtAuthGuard } from "./guards/jwt-auth.guard";
 import { UploadService } from "../upload/upload.service";
@@ -291,5 +294,102 @@ export class AuthController {
     return this.authService.updateProfile(req.user.id, {
       profileImageUrl: imageUrl,
     });
+  }
+
+  @Post("forgot-password")
+  @ApiOperation({
+    summary: "Request password reset",
+    description:
+      "Send a password reset link to the user's email address. Always returns success to prevent email enumeration.",
+  })
+  @ApiBody({ type: ForgotPasswordDto })
+  @ApiResponse({
+    status: 200,
+    description: "Password reset email sent (if email exists)",
+    schema: {
+      example: {
+        message:
+          "If an account with that email exists, we have sent you a password reset link.",
+      },
+    },
+  })
+  @ApiBadRequestResponse({
+    description: "Invalid email format",
+    schema: {
+      example: {
+        statusCode: 400,
+        message: ["Please provide a valid email address"],
+        error: "Bad Request",
+      },
+    },
+  })
+  async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(forgotPasswordDto);
+  }
+
+  @Get("reset-password/:token")
+  @ApiOperation({
+    summary: "Verify password reset token",
+    description:
+      "Check if a password reset token is valid and not expired. Used by frontend to validate token before showing reset form.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Token verification result",
+    schema: {
+      example: {
+        valid: true,
+        message: "Token is valid",
+      },
+    },
+  })
+  async verifyResetToken(@Param("token") token: string) {
+    return this.authService.verifyResetToken(token);
+  }
+
+  @Post("reset-password")
+  @ApiOperation({
+    summary: "Reset password",
+    description:
+      "Reset user password using a valid reset token and new password.",
+  })
+  @ApiBody({ type: ResetPasswordDto })
+  @ApiResponse({
+    status: 200,
+    description: "Password reset successfully",
+    schema: {
+      example: {
+        message: "Password has been reset successfully",
+      },
+    },
+  })
+  @ApiBadRequestResponse({
+    description: "Invalid token, expired token, or invalid password format",
+    schema: {
+      examples: {
+        invalidToken: {
+          summary: "Invalid or expired token",
+          value: {
+            statusCode: 400,
+            message: "Invalid or expired reset token",
+            error: "Bad Request",
+          },
+        },
+        invalidPassword: {
+          summary: "Invalid password format",
+          value: {
+            statusCode: 400,
+            message: [
+              "Password must be at least 8 characters long",
+              "Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character",
+            ],
+            error: "Bad Request",
+          },
+        },
+      },
+    },
+  })
+  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto) {
+    return this.authService.resetPassword(resetPasswordDto);
   }
 }

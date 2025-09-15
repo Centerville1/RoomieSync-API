@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Request, Query } from '@nestjs/common';
 import {
   ApiTags,
   ApiOperation,
@@ -8,7 +8,8 @@ import {
   ApiUnauthorizedResponse,
   ApiBadRequestResponse,
   ApiNotFoundResponse,
-  ApiParam
+  ApiParam,
+  ApiQuery
 } from '@nestjs/swagger';
 import { ExpensesService } from './expenses.service';
 import { CreateExpenseDto } from './dto/create-expense.dto';
@@ -213,5 +214,142 @@ export class BalancesController {
   })
   async getUserBalances(@Param('houseId') houseId: string, @Request() req) {
     return this.expensesService.getUserBalances(req.user.id, houseId);
+  }
+}
+
+@ApiTags('Transactions')
+@Controller('houses/:houseId/transactions')
+@UseGuards(JwtAuthGuard)
+@ApiBearerAuth('JWT-auth')
+export class TransactionsController {
+  constructor(private readonly expensesService: ExpensesService) {}
+
+  @Get()
+  @ApiOperation({
+    summary: 'Get house transactions',
+    description: 'Get expenses and payments for the house with optional filtering by user, date range, and type'
+  })
+  @ApiParam({ name: 'houseId', description: 'House UUID' })
+  @ApiQuery({
+    name: 'userOnly',
+    required: false,
+    description: 'If true, only return transactions involving the authenticated user',
+    type: 'boolean'
+  })
+  @ApiQuery({
+    name: 'startDate',
+    required: false,
+    description: 'Start date for filtering (YYYY-MM-DD). Defaults to 1 month ago',
+    type: 'string'
+  })
+  @ApiQuery({
+    name: 'endDate',
+    required: false,
+    description: 'End date for filtering (YYYY-MM-DD). Defaults to today',
+    type: 'string'
+  })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    description: 'Filter by transaction type',
+    enum: ['expense', 'payment']
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'List of transactions',
+    schema: {
+      example: {
+        transactions: [
+          {
+            id: 'expense-uuid',
+            type: 'expense',
+            date: '2025-01-15',
+            description: 'Groceries',
+            amount: 120.50,
+            userShare: 60.25,
+            createdBy: {
+              id: 'user-uuid',
+              firstName: 'John',
+              lastName: 'Doe',
+              email: 'john@example.com',
+              color: '#6366F1',
+              displayName: 'Johnny'
+            },
+            splitBetween: [
+              {
+                id: 'user-uuid-1',
+                firstName: 'John',
+                lastName: 'Doe',
+                email: 'john@example.com',
+                color: '#6366F1',
+                displayName: 'Johnny'
+              },
+              {
+                id: 'user-uuid-2',
+                firstName: 'Alice',
+                lastName: 'Smith',
+                email: 'alice@example.com',
+                color: '#EC4899',
+                displayName: 'Alice'
+              }
+            ],
+            category: {
+              id: 'category-uuid',
+              name: 'Groceries',
+              description: 'Food and household essentials',
+              color: '#10B981',
+              icon: 'shopping-cart'
+            }
+          },
+          {
+            id: 'payment-uuid',
+            type: 'payment',
+            date: '2025-01-14',
+            description: 'Payment to Alice',
+            amount: 35.50,
+            fromUser: {
+              id: 'user-uuid',
+              firstName: 'John',
+              lastName: 'Doe',
+              email: 'john@example.com',
+              color: '#6366F1',
+              displayName: 'Johnny'
+            },
+            toUser: {
+              id: 'user-uuid-2',
+              firstName: 'Alice',
+              lastName: 'Smith',
+              email: 'alice@example.com',
+              color: '#EC4899',
+              displayName: 'Alice'
+            }
+          }
+        ]
+      }
+    }
+  })
+  @ApiNotFoundResponse({
+    description: 'House not found or user is not a member'
+  })
+  @ApiUnauthorizedResponse({
+    description: 'Invalid or missing JWT token'
+  })
+  async getHouseTransactions(
+    @Param('houseId') houseId: string,
+    @Request() req,
+    @Query('userOnly') userOnly?: boolean,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+    @Query('type') type?: 'expense' | 'payment'
+  ) {
+    const isUserOnly = userOnly === true || String(userOnly) === 'true';
+    return this.expensesService.getHouseTransactions(
+      req.user.id,
+      houseId,
+      isUserOnly,
+      startDate,
+      endDate,
+      type
+    );
   }
 }

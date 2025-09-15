@@ -17,6 +17,7 @@ export class PaymentsService {
     private houseMembershipsRepository: Repository<HouseMembership>,
   ) {}
 
+
   async createPayment(
     createPaymentDto: CreatePaymentDto,
     fromUserId: string,
@@ -69,42 +70,7 @@ export class PaymentsService {
     });
   }
 
-  async getHousePayments(userId: string, houseId: string) {
-    // Verify user is a member of the house
-    const membership = await this.houseMembershipsRepository.findOne({
-      where: { userId, houseId, isActive: true },
-    });
 
-    if (!membership) {
-      throw new NotFoundException('House not found or you are not a member');
-    }
-
-    return this.paymentsRepository.find({
-      where: { houseId },
-      relations: ['fromUser', 'toUser'],
-      order: { paymentDate: 'DESC' },
-    });
-  }
-
-  async getUserPayments(userId: string, houseId: string) {
-    // Verify user is a member of the house
-    const membership = await this.houseMembershipsRepository.findOne({
-      where: { userId, houseId, isActive: true },
-    });
-
-    if (!membership) {
-      throw new NotFoundException('House not found or you are not a member');
-    }
-
-    return this.paymentsRepository.find({
-      where: [
-        { fromUserId: userId, houseId },
-        { toUserId: userId, houseId },
-      ],
-      relations: ['fromUser', 'toUser'],
-      order: { paymentDate: 'DESC' },
-    });
-  }
 
   private async updateBalancesAfterPayment(
     fromUserId: string,
